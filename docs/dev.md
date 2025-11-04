@@ -1,8 +1,13 @@
+- [ ] нужна команда download. лучше даже не команду, просто обработка вообще всех сообщений как ссылок
+- [ ] рефакторю энтрипоинт. нужно вынести интерфейсы и bot-application вынести в отдельный файлы
+  - пока не увлекайся рефакторингом. делай на месте
+
+---
+
 - [x] formatting
 - [ ] linting
 - [ ] typecheck
 
-- [ ] нужна команда download. лучше даже не команду, просто обработка вообще всех сообщений как ссылок
 
 - cobalt deepwiki - https://deepwiki.com/imputnet/cobalt
 - sc cobalt code - https://github.com/imputnet/cobalt/blob/47d8ccbc17aeeac6cb754c8b721c2148f007c103/api/src/processing/services/soundcloud.js#L11
