@@ -1,9 +1,9 @@
 // TODO is entity?
 export enum BotCommandTypes {
- Start = 'start',
- Help = 'help',
- Status = 'status',
- Download = 'download'
+  Start = "start",
+  Help = "help",
+  Status = "status",
+  Download = "download",
 }
 
 export class BotCommand {
@@ -11,11 +11,11 @@ export class BotCommand {
     public readonly type: BotCommandTypes,
     public readonly userId: string,
     public readonly chatId: string,
-	// TODO is needed?
+    // TODO is needed?
     // public readonly payload: string,
     // public readonly messageId: string
   ) {}
-  
+
   // TODO is needed?
   // static createDownload(url: string, userId: string, chatId: string, messageId: string): BotCommand {
   //   return new BotCommand('download', url, userId, chatId, messageId);

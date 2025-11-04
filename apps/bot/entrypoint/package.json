@@ -7,11 +7,11 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-	  "telegraf": "4.16.3",
-	  "@apps/bot-presentation": "workspace:*",
-	  "@apps/shared-domain": "workspace:*"
+    "telegraf": "4.16.3",
+    "@apps/bot-presentation": "workspace:*",
+    "@apps/shared-domain": "workspace:*"
   },
   "scripts": {
-	  "dev": "bun --watch src/main.ts"
+    "dev": "bun --watch src/main.ts"
   }
 }

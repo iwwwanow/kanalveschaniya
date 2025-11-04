@@ -1,1 +1,1 @@
-export * from './bot-command.vo'
+export * from "./bot-command.vo";

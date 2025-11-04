@@ -6,9 +6,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-	  "@apps/shared-domain": "workspace:*",
-	  "@apps/bot-application": "workspace:*"
+    "@apps/shared-domain": "workspace:*",
+    "@apps/bot-application": "workspace:*"
   },
   "private": true
 }
-

@@ -1,8 +1,8 @@
-import { BotCommand } from '@apps/shared-domain';
+import { BotCommand } from "@apps/shared-domain";
 // TODO разнести по пакетам
-import { HandleHelpUseCase } from '@apps/bot-application';
-import { BotResponse } from './bot-response.vo';
-import { BotCommandTypes } from '@apps/shared-domain';
+import { HandleHelpUseCase } from "@apps/bot-application";
+import { BotResponse } from "./bot-response.vo";
+import { BotCommandTypes } from "@apps/shared-domain";
 
 export class BotController {
   private helpUseCase: HandleHelpUseCase;
@@ -29,13 +29,15 @@ export class BotController {
 
   private async handleStart(command: BotCommand): Promise<BotResponse> {
     const welcomeText = `🎵 Добро пожаловать в Music Downloader Bot!\n\nИспользуйте /help для просмотра всех команд.`;
-    return new BotResponse(command.chatId, welcomeText, { parse_mode: 'Markdown' });
+    return new BotResponse(command.chatId, welcomeText, {
+      parse_mode: "Markdown",
+    });
   }
 
   private async handleUnknown(command: BotCommand): Promise<BotResponse> {
     return new BotResponse(
       command.chatId,
-      'Неизвестная команда. Используйте /help для просмотра доступных команд.'
+      "Неизвестная команда. Используйте /help для просмотра доступных команд.",
     );
   }
 }

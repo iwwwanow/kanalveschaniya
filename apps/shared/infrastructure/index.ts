@@ -1,1 +1,1 @@
-export * from '../di/indexndex'
+export * from "../di/indexndex";

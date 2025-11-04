@@ -2,13 +2,16 @@
   "name": "iwwwanow_kanalveshchaniya",
   "module": "index.ts",
   "type": "module",
-  "workspaces": ["apps/**/*", "packages/**/*"],
+  "workspaces": [
+    "apps/**/*",
+    "packages/**/*"
+  ],
   "private": true,
   "devDependencies": {
     "@types/bun": "1.3.1",
     "typescript": "5.9.3"
   },
   "scripts": {
-	  "bot:dev": "bun --env-file=.env.local --filter '@apps/bot-entrypoint' dev"
+    "bot:dev": "bun --env-file=.env.local --filter '@apps/bot-entrypoint' dev"
   }
 }

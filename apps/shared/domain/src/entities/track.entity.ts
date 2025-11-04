@@ -6,7 +6,7 @@ export interface Track {
   duration: number;
   filePath: string;
   downloadedAt: Date;
-  status: 'pending' | 'downloaded' | 'failed';
+  status: "pending" | "downloaded" | "failed";
   userId: string;
   chatId: string;
 }

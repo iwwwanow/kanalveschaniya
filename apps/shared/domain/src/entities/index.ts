@@ -1,1 +1,1 @@
-export * from './track.entity'
+export * from "./track.entity";

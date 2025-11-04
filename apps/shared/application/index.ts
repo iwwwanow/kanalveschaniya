@@ -1,1 +1,1 @@
-export * from './src/use-cases/indexx'
+export * from "./src/use-cases/indexx";
