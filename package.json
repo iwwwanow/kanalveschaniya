@@ -2,6 +2,7 @@
   "name": "iwwwanow_kanalveshchaniya",
   "module": "index.ts",
   "type": "module",
+  "workspaces": ["apps/**/*", "packages/**/*"],
   "private": true,
   "devDependencies": {
     "@types/bun": "1.3.1",
