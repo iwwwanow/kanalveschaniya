@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf';
 import { Container } from '../../../shared/infrastructure/di/container';
-import { BotController } from './presentation/telegram/bot.controller';
+import { BotController } from '../presentation/src/telegram/bot.controller.ts.bak';
 
 class BotApplication {
   private bot: Telegraf;

@@ -1,5 +1,5 @@
 {
-  "name": "@apps/shared",
+  "name": "@apps/bot-application",
   "module": "index.ts",
   "type": "module",
   "exports": {

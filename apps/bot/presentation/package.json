@@ -1,0 +1,14 @@
+{
+  "name": "@apps/bot-presentation",
+  "module": "index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+	  "@apps/shared-domain": "workspace:*",
+	  "@apps/bot-application": "workspace:*"
+  },
+  "private": true
+}
+
