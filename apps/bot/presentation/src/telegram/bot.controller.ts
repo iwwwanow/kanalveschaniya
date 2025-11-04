@@ -17,6 +17,8 @@ export class BotController {
         return this.handleHelp(command);
       case BotCommandTypes.Start:
         return this.handleStart(command);
+      case BotCommandTypes.Message:
+        return this.handleMessage(command);
       default:
         return this.handleUnknown(command);
     }
@@ -28,7 +30,14 @@ export class BotController {
   }
 
   private async handleStart(command: BotCommand): Promise<BotResponse> {
-    const welcomeText = `🎵 Добро пожаловать в Music Downloader Bot!\n\nИспользуйте /help для просмотра всех команд.`;
+    const welcomeText = "_handle-start-command-text_";
+    return new BotResponse(command.chatId, welcomeText, {
+      parse_mode: "Markdown",
+    });
+  }
+
+  private async handleMessage(command: BotCommand): Promise<BotResponse> {
+    const welcomeText = "_handle-message-text_";
     return new BotResponse(command.chatId, welcomeText, {
       parse_mode: "Markdown",
     });

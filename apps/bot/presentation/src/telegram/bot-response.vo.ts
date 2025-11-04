@@ -1,7 +1,8 @@
 export class BotResponse {
   constructor(
     public readonly chatId: string,
-    public readonly text?: string,
+    public readonly text: string,
+    // TODO any type
     public readonly options?: any,
     // TODO
     // public readonly type: 'text' | 'audio',
