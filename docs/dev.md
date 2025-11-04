@@ -1,3 +1,8 @@
+- [ ] formatting
+- [ ] linting
+
+---
+
 - bunjs
 - sqlite db (drizzle orm)
   - нужна очередь на скачивание
