@@ -45,7 +45,7 @@ export class TrackCacheService {
 export class DownloadTrackUseCase {
   constructor(
     private trackCache: TrackCacheService,
-    private trackDownloader: TrackDownloader,
+    private trackDownloader: TrackDownloader = new SoundCloudAdapter(),
     private trackRepository: TrackRepository,
     // private messageBus: MessageBus, // Убрали на сейчас
   ) { }
