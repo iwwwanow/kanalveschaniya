@@ -53,6 +53,9 @@ export class BotApplication {
   }
 
   start(): void {
+    // TODO check env utils
+    if (!process.env.BOT_TOKEN) throw new Error('BOT_TOKEN not provided')
+
     this.bot.launch();
     console.log("telegram-bot-launched");
   }
