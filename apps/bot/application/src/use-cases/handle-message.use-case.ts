@@ -1,9 +1,9 @@
-export class HelpCommandResponse {
+export class MessageResponse {
   constructor(public readonly text: string) { }
 }
 
-export class HandleHelpCommandUseCase {
-  execute(): HelpCommandResponse {
+export class HandleMessageUseCase {
+  execute(): MessageResponse {
     // TODO locales
     const commands = [
       "/start - Начать работу с ботом",
@@ -14,6 +14,6 @@ export class HandleHelpCommandUseCase {
 
     const helpText = `🎵 **Music Downloader Bot**\n\nДоступные команды:\n${commands.join("\n")}`;
 
-    return new HelpCommandResponse(helpText);
+    return new MessageResponse(helpText);
   }
 }

@@ -1,14 +1,20 @@
 import { BotCommand } from "@apps/shared-domain";
+import { HandleHelpCommandUseCase } from "@apps/bot-application";
+import { HandleStartCommandUseCase } from "@apps/bot-application";
+import { HandleMessageUseCase } from "@apps/bot-application";
 // TODO разнести по пакетам
-import { HandleHelpUseCase } from "@apps/bot-application";
 import { BotResponse } from "./bot-response.vo";
 import { BotCommandTypes } from "@apps/shared-domain";
 
 export class BotController {
-  private helpUseCase: HandleHelpUseCase;
+  private startCommandUseCase: HandleStartCommandUseCase;
+  private helpCommandUseCase: HandleHelpCommandUseCase;
+  private messageUseCase: HandleMessageUseCase;
 
   constructor() {
-    this.helpUseCase = new HandleHelpUseCase();
+    this.startCommandUseCase = new HandleStartCommandUseCase();
+    this.helpCommandUseCase = new HandleHelpCommandUseCase();
+    this.messageUseCase = new HandleMessageUseCase();
   }
 
   async handleCommand(command: BotCommand): Promise<BotResponse> {
@@ -25,28 +31,21 @@ export class BotController {
   }
 
   private async handleHelp(command: BotCommand): Promise<BotResponse> {
-    const helpResponse = this.helpUseCase.execute();
+    const helpResponse = this.helpCommandUseCase.execute();
     return BotResponse.fromHelp(command.chatId, helpResponse.text);
   }
 
   private async handleStart(command: BotCommand): Promise<BotResponse> {
-    const welcomeText = "_handle-start-command-text_";
-    return new BotResponse(command.chatId, welcomeText, {
-      parse_mode: "Markdown",
-    });
+    const startResponse = this.startCommandUseCase.execute();
+    return BotResponse.fromStart(command.chatId, startResponse.text);
   }
 
   private async handleMessage(command: BotCommand): Promise<BotResponse> {
-    const welcomeText = "_handle-message-text_";
-    return new BotResponse(command.chatId, welcomeText, {
-      parse_mode: "Markdown",
-    });
+    const messageResponse = this.messageUseCase.execute();
+    return BotResponse.fromMessage(command.chatId, messageResponse.text);
   }
 
   private async handleUnknown(command: BotCommand): Promise<BotResponse> {
-    return new BotResponse(
-      command.chatId,
-      "Неизвестная команда. Используйте /help для просмотра доступных команд.",
-    );
+    return BotResponse.fromUnknown(command.chatId);
   }
 }

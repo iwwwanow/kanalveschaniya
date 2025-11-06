@@ -8,29 +8,25 @@ export class BotResponse {
     // public readonly type: 'text' | 'audio',
     // public readonly filePath?: string,
     // public readonly caption?: string,
-  ) {}
+  ) { }
 
-  static fromHelp(chatId: string, helpText: string): BotResponse {
+  static fromStart(chatId: string, helpText: string): BotResponse {
     return new BotResponse(chatId, helpText, { parse_mode: "Markdown" });
   }
 
-  // TODO
-  // static downloadStarted(chatId: string, title: string, cached: boolean): BotResponse {
-  //   const status = cached ? 'из кэша' : 'начато скачивание';
-  //   return new BotResponse(
-  //     'text',
-  //     chatId,
-  //     `🎵 "${title}" - ${status}`
-  //   );
-  // }
-  //
-  // static audioReady(chatId: string, filePath: string, title: string): BotResponse {
-  //   return new BotResponse(
-  //     'audio',
-  //     chatId,
-  //     undefined,
-  //     filePath,
-  //     `🎵 ${title}`
-  //   );
-  // }
+  static fromHelp(chatId: string, startText: string): BotResponse {
+    return new BotResponse(chatId, startText, { parse_mode: "Markdown" });
+  }
+
+  static fromMessage(chatId: string, messageText: string): BotResponse {
+    return new BotResponse(chatId, messageText, { parse_mode: "Markdown" });
+  }
+
+  // TODO is it VO?
+  static fromUnknown(chatId: string): BotResponse {
+    return new BotResponse(
+      chatId,
+      "Неизвестная команда. Используйте /help для просмотра доступных команд.",
+    );
+  }
 }
