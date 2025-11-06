@@ -1,0 +1,13 @@
+{
+  "name": "@packages/downloader",
+  "private": true,
+  "module": "index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@imput/psl": "2.0.4",
+    "undici": "7.16.0",
+    "url-pattern": "1.0.3"
+  }
+}

@@ -1,5 +1,7 @@
 {
   "name": "@packages/database",
+  "private": true,
+  "module": "index.ts",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
