@@ -1,12 +1,15 @@
 import { DownloadTrackUseCase } from '@apps/shared-application'
 import { BotCommand } from "@apps/shared-domain";
+// TODO! domain
+import { BotResponse } from '../../../presentation/src/telegram';
 
 export class MessageResponse {
   constructor(public readonly text: string) { }
 }
 
 export class HandleMessageUseCase {
-  constructor(private downloadTrackUseCase: DownloadTrackUseCase) { }
+  constructor(
+    private downloadTrackUseCase: DownloadTrackUseCase = new DownloadTrackUseCase()) { }
 
   async execute(command: BotCommand): Promise<MessageResponse> {
     // TODO locales
@@ -17,12 +20,15 @@ export class HandleMessageUseCase {
     if (this.isValidUrl(text)) {
       return await this.handleDownload(command, text);
     } else {
+      // TODO locales
       return new MessageResponse('url incorrect');
     }
   }
 
   private async handleDownload(command: BotCommand, url: string): Promise<BotResponse> {
+    console.log('handle download')
     try {
+      debugger;
       const result = await this.downloadTrackUseCase.execute(
         url,
         command.userId,

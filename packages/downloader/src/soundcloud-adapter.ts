@@ -51,6 +51,7 @@ const cachedID: CachedClientID = {
 
 export class SoundCloudAdapter implements TrackDownloader {
   async download(url: string): Promise<DownloadResult> {
+    console.log('execute adapter download track')
     const result = await this.downloadSoundCloudTrack(url);
 
     if (result.error) {

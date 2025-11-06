@@ -43,18 +43,21 @@ export class TrackCacheService {
 }
 
 export class DownloadTrackUseCase {
-  constructor(
-    private trackCache: TrackCacheService,
-    private trackDownloader: TrackDownloader = new SoundCloudAdapter(),
-    private trackRepository: TrackRepository,
-    // private messageBus: MessageBus, // Убрали на сейчас
-  ) { }
+  private trackCache: TrackCacheService
+  private trackDownloader: TrackDownloader
+  private trackRepository: TrackRepository
+
+
+  constructor() {
+    this.trackDownloader = new SoundCloudAdapter()
+  }
 
   async execute(
     url: string,
     userId: string,
     chatId: string,
   ): Promise<{ track: Track; cached: boolean }> {
+    debugger;
     // Проверяем кэш
     const cachedTrack = await this.trackCache.getCachedTrack(url);
     if (cachedTrack) {
@@ -68,18 +71,19 @@ export class DownloadTrackUseCase {
 
     // Скачиваем
     const downloadResult = await this.trackDownloader.download(url);
+    debugger;
 
     // Сохраняем в кэш
-    const track = await this.trackCache.cacheTrack({
-      url,
-      title: downloadResult.title,
-      artist: downloadResult.artist,
-      duration: downloadResult.duration,
-      filePath: downloadResult.filePath,
-      status: "downloaded",
-      userId,    // Добавили пользователя
-      chatId,    // Добавили чат
-    });
+    // const track = await this.trackCache.cacheTrack({
+    //   url,
+    //   title: downloadResult.title,
+    //   artist: downloadResult.artist,
+    //   duration: downloadResult.duration,
+    //   filePath: downloadResult.filePath,
+    //   status: "downloaded",
+    //   userId,    // Добавили пользователя
+    //   chatId,    // Добавили чат
+    // });
 
     // await this.messageBus.publish("track.downloaded", { // Убрали
     //   trackId: track.id,
