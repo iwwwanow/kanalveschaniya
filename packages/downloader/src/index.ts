@@ -1,1 +1,2 @@
-export * from './soundcloud'
+export * from './soundcloud-adapter'
+export * from './types'

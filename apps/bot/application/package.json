@@ -5,5 +5,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "dependencies": {
+    "@apps/shared-application": "workspace:*",
+    "@apps/shared-domain": "workspace:*"
+  },
   "private": true
 }

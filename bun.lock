@@ -13,6 +13,10 @@
     },
     "apps/bot/application": {
       "name": "@apps/bot-application",
+      "dependencies": {
+        "@apps/shared-application": "workspace:*",
+        "@apps/shared-domain": "workspace:*",
+      },
     },
     "apps/bot/entrypoint": {
       "name": "@apps/bot-entrypoint",
@@ -34,6 +38,10 @@
     },
     "apps/shared/application": {
       "name": "@apps/shared-application",
+      "dependencies": {
+        "@apps/shared-domain": "workspace:*",
+        "@packages/downloader": "workspace:*",
+      },
     },
     "apps/shared/domain": {
       "name": "@apps/shared-domain",

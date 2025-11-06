@@ -41,7 +41,7 @@ export class BotController {
   }
 
   private async handleMessage(command: BotCommand): Promise<BotResponse> {
-    const messageResponse = this.messageUseCase.execute();
+    const messageResponse = this.messageUseCase.execute(command.payload);
     return BotResponse.fromMessage(command.chatId, messageResponse.text);
   }
 
