@@ -1,3 +1,3 @@
 export * from './entities'
-export * from './value-objects'
-export * from './repositiories'
+export * from './repositories'
+export * from './interfaces'
