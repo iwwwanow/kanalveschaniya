@@ -1,3 +1,11 @@
+- [ ] application, use-cases
+  - для начала пойми, какие юс-кейсы вообще нужны
+- [ ] domain, unit-tests
+- [ ] application, unit-tests
+- [ ] application, integration-tests
+
+---
+
 - [x] formatting
 - [ ] linting
 - [ ] typecheck
