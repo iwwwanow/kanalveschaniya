@@ -1,3 +1,4 @@
+// TODO refactor
 export class ResourceId {
   constructor(private readonly value: string) {
     if (!this.isValid(value)) {
