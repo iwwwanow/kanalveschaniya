@@ -8,11 +8,19 @@
         "typescript": "5.9.3",
       },
     },
+    "apps/telegram-bot/application": {
+      "name": "@apps/telegram-bot-application",
+      "dependencies": {
+        "@apps/telegram-bot-domain": "workspace:*",
+      },
+    },
     "apps/telegram-bot/domain": {
       "name": "@apps/telegram-bot-domain",
     },
   },
   "packages": {
+    "@apps/telegram-bot-application": ["@apps/telegram-bot-application@workspace:apps/telegram-bot/application"],
+
     "@apps/telegram-bot-domain": ["@apps/telegram-bot-domain@workspace:apps/telegram-bot/domain"],
 
     "@types/bun": ["@types/bun@1.3.1", "", { "dependencies": { "bun-types": "1.3.1" } }, "sha512-4jNMk2/K9YJtfqwoAa28c8wK+T7nvJFOjxI4h/7sORWcypRNxBpr+TPNaCfVWq70tLCJsqoFwcf0oI0JU/fvMQ=="],
