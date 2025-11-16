@@ -1,9 +1,9 @@
-import type { Resource } from "@apps/telegram-bot-domain";
-import type { QueueTask } from "@apps/telegram-bot-domain";
 import type { QueueRepository } from "@apps/telegram-bot-domain";
 import type { ResourceRepository } from "@apps/telegram-bot-domain";
+import type { ScheduleDownloadCommand } from "../dtos";
+import type { ScheduleDownloadResult } from "../dtos";
 
-export class DownloadResourceUseCase {
+export class ScheduleDownloadUseCase {
   constructor(
     public readonly queueRepository: QueueRepository,
     public readonly resourceRepository: ResourceRepository,
@@ -11,7 +11,7 @@ export class DownloadResourceUseCase {
 
   // TODO return type?
   // TODO input execute type? || or pass Resource?
-  execute(resourceUrl: string): any {
+  async execute(command: ScheduleDownloadCommand): Promise<ScheduleDownloadResult> {
     // 1. check is downloaded previosly?
 
     // 2. check is qurrently in queue?
