@@ -1,8 +1,27 @@
 ### [ ] Почини критические ошибки (2-4 часа)
-  - [ ] Создать ScheduleDownloadCommand класс в application/dtos/
-  - [ ] Перенести resourceUrl, chatId, messageId в Command
-  - [ ] Изменить execute на async execute(command: ScheduleDownloadCommand)
-  - [ ] Убрать any из возвращаемого типа
+[x] Создать ScheduleDownloadCommand класс в application/dtos/
+[ ] Перенести resourceUrl, chatId, messageId в Command
+  - в целом, детализация комманды. что нужно для выполнения?
+  - обрати внимание, что ты будешь записывать в БД с айди чата и айди пользователя. также нужен УРЛ. думаю, имеет смысл сохранять еще и messageId, чтобы генерить ответ на сообщение
+[ ] Изменить execute на async execute(command: ScheduleDownloadCommand)
+[ ] Убрать any из возвращаемого типа
+
+[ ] Создать ScheduleDownloadResult тип с вариантами:
+    - Success (task: QueueTask)
+    - AlreadyDownloaded (resource: Resource)
+    - AlreadyInQueue (task: QueueTask)
+    - ValidationError (message: string)
+[ ] Определить какие ошибки доменные (AlreadyExists), какие системные (DatabaseError)
+[ ] Решить: доменные ошибки - часть Result, системные - исключения
+
+[ ] Сделать queueRepository и resourceRepository приватными
+[ ] Добавить async ко всем методам в Use Case
+[ ] Обновить интерфейсы репозиториев на Promise
+
+[ ] Реализовать проверку в ResourceRepository (скачан ли ранее)
+[ ] Реализовать проверку в QueueRepository (есть ли в очереди)
+[ ] Реализовать создание QueueTask и добавление в очередь
+[ ] Возвращать соответствующий Result вариант
 ### [ ] Проектирование архитектуры (1-2 часа)
 ### [ ] Реализация базового сценария (3-4 часа)
 ### [ ] Добавление обработки edge cases (2-3 часа)
