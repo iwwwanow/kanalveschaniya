@@ -5,8 +5,8 @@ import type { ScheduleDownloadResult } from "../dtos";
 
 export class ScheduleDownloadUseCase {
   constructor(
-    public readonly queueRepository: QueueRepository,
-    public readonly resourceRepository: ResourceRepository,
+    private readonly queueRepository: QueueRepository,
+    private readonly resourceRepository: ResourceRepository,
   ) { }
 
   // TODO return type?
