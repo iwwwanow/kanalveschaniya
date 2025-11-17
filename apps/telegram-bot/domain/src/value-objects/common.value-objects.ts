@@ -49,6 +49,10 @@ export class QueueTaskId {
 
   toString(): string { return this.value; }
   equals(other: QueueTaskId): boolean { return this.value === other.value; }
+
+  static generate(): QueueTaskId {
+    return new QueueTaskId(crypto.randomUUID());
+  }
 }
 
 export class QueueTaskPriority {
@@ -79,7 +83,7 @@ export class QueueTaskPriority {
 }
 
 // TODO destructure
-export enum TaskStatus {
+export enum TaskStatusType {
   Pending = 'pending',
   Processing = 'processing',
   Downloaded = 'downloaded',
@@ -87,19 +91,19 @@ export enum TaskStatus {
 }
 
 export class QueueTaskStatus {
-  constructor(private value: TaskStatus) {
+  constructor(private value: TaskStatusType) {
     if (!this.isValid(value)) {
       throw new Error('Invalid QueueTaskStatus');
     }
   }
 
-  private isValid(value: TaskStatus): boolean {
-    return Object.values(TaskStatus).includes(value);
+  private isValid(value: TaskStatusType): boolean {
+    return Object.values(TaskStatusType).includes(value);
   }
 
   toString(): string { return this.value; }
-  getValue(): TaskStatus { return this.value }
-  setValue(value: TaskStatus): void { this.value = value }
+  getValue(): TaskStatusType { return this.value }
+  setValue(value: TaskStatusType): void { this.value = value }
   equals(other: QueueTaskStatus): boolean { return this.value === other.value; }
 }
 
