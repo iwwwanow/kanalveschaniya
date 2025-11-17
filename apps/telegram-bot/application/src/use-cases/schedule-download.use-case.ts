@@ -1,7 +1,11 @@
+import { QueueTask } from "@apps/telegram-bot-domain";
 import type { QueueRepository } from "@apps/telegram-bot-domain";
 import type { ResourceRepository } from "@apps/telegram-bot-domain";
 import type { ScheduleDownloadCommand } from "../dtos";
 import type { ScheduleDownloadResult } from "../dtos";
+import { ScheduleDownloadStatus } from "../dtos";
+import { DatabaseConnectionError } from "../errors";
+import { FileSystemError } from "../errors";
 
 export class ScheduleDownloadUseCase {
   constructor(
@@ -9,28 +13,47 @@ export class ScheduleDownloadUseCase {
     private readonly resourceRepository: ResourceRepository,
   ) { }
 
-  // TODO return type?
-  // TODO input execute type? || or pass Resource?
   async execute(command: ScheduleDownloadCommand): Promise<ScheduleDownloadResult> {
-    // 1. check is downloaded previosly?
+    try {
+      const { resourceUrl, chatId, messageId } = command
 
-    // 2. check is qurrently in queue?
+      const existingResource = await this.resourceRepository.findBySourceUrl(resourceUrl)
+      if (existingResource) {
+        return {
+          status: ScheduleDownloadStatus.AlreadyDownloaded,
+          resource: existingResource
+        }
+      }
 
-    // 3. add to queue
-  }
+      const queueTask = await this.queueRepository.findBySourceUrl(resourceUrl)
+      // TODO нужно оповещать пользователя в любом случае. даже если задача в очереди уже есть. как это сделать?
+      // TODO может быть для оповещений сделать отдельную таблицу?
+      if (queueTask && queueTask[0]) {
+        return {
+          status: ScheduleDownloadStatus.AlreadyQueued,
+          task: queueTask[0]
+        }
+      }
 
-  private checkResourceDownloaded(): boolean {
+      const newQueueTask = QueueTask.create(resourceUrl, chatId, messageId, 0)
+      await this.queueRepository.add(newQueueTask)
 
-  }
+      return {
+        status: ScheduleDownloadStatus.Success,
+        task: newQueueTask
+      }
+    } catch (error) {
+      if (error instanceof DatabaseConnectionError) {
+        // TODO process error; log it
+        throw error;
+      }
 
-  // TODO naming
-  private checkResourceInQueue(): boolean {
+      if (error instanceof FileSystemError) {
+        // TODO process error; log it
+        throw error;
+      }
 
-  }
-
-  // TODO naming
-  // TODO type
-  private addResourceToQueue(): void {
-
+      throw error;
+    }
   }
 }
