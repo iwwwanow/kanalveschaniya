@@ -13,6 +13,7 @@ export class ScheduleDownloadUseCase {
     private readonly resourceRepository: ResourceRepository,
   ) { }
 
+  // TODO destructure into private methods
   async execute(command: ScheduleDownloadCommand): Promise<ScheduleDownloadResult> {
     try {
       const { resourceUrl, chatId, messageId } = command
@@ -43,6 +44,7 @@ export class ScheduleDownloadUseCase {
         task: newQueueTask
       }
     } catch (error) {
+      // TODO смотри, у тебя есть вариант result - error. при этом, эррор ты не возвращаешь. нужно както это обрабатывать. либо возвращать error, либо убирать такую опцию из result
       if (error instanceof DatabaseConnectionError) {
         // TODO process error; log it
         throw error;
