@@ -4,7 +4,7 @@ import type { ResourceId } from "../value-objects";
 
 export class Resource extends Entity<ResourceId> {
   constructor(
-    resourceId: ResourceId,
+    public resourceId: ResourceId,
     // TODO filepath?
     public readonly filename: string,
     public readonly sourceUrl: string

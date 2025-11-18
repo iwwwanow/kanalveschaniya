@@ -9,9 +9,25 @@ export enum ScheduleDownloadStatus {
   SystemError = 'system_error',
 }
 
+export interface SuccessDto {
+  taskId: string
+  chatId: string
+  messageId: string
+  position: number
+}
+
+export interface AlreadyQueuedDto {
+  taskId: string
+  position: number
+}
+
+export interface AlreadyDownloadedDto {
+  resourceId: string
+}
+
 export type ScheduleDownloadResult =
-  | { status: ScheduleDownloadStatus.Success; task: QueueTask }
-  | { status: ScheduleDownloadStatus.AlreadyDownloaded; resource: Resource }
-  | { status: ScheduleDownloadStatus.AlreadyQueued; task: QueueTask }
+  | { status: ScheduleDownloadStatus.Success; dto: SuccessDto }
+  | { status: ScheduleDownloadStatus.AlreadyDownloaded; dto: AlreadyDownloadedDto }
+  | { status: ScheduleDownloadStatus.AlreadyQueued; dto: AlreadyQueuedDto }
   | { status: ScheduleDownloadStatus.ValidationError; message: string }
   | { status: ScheduleDownloadStatus.SystemError; message: string };

@@ -10,4 +10,5 @@ export interface QueueRepository {
   findBySourceUrl(taskUrl: ResourceSourceUrl): Promise<Array<QueueTask> | null>
   findNextPending(): Promise<QueueTask | null>
   updateStatus(taskId: QueueTaskId, status: QueueTaskStatus): Promise<void>
+  getTaskPosition(taskId: QueueTaskId): Promise<number>;
 }

@@ -11,7 +11,7 @@ import type { TelegramMessageId } from "../value-objects";
 
 export class QueueTask extends Entity<QueueTaskId> {
   constructor(
-    taskId: QueueTaskId,
+    public taskId: QueueTaskId,
     public readonly sourceUrl: ResourceSourceUrl,
     public priority: QueueTaskPriority,
     public status: QueueTaskStatus,

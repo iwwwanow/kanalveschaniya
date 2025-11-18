@@ -1,61 +1,80 @@
 import { QueueTask } from "@apps/telegram-bot-domain";
-import type { QueueRepository } from "@apps/telegram-bot-domain";
+import type { QueueRepository, TelegramChatId, TelegramMessageId } from "@apps/telegram-bot-domain";
 import type { ResourceRepository } from "@apps/telegram-bot-domain";
 import type { ScheduleDownloadCommand } from "../dtos";
 import type { ScheduleDownloadResult } from "../dtos";
 import { ScheduleDownloadStatus } from "../dtos";
-import { DatabaseConnectionError } from "../errors";
-import { FileSystemError } from "../errors";
+import type { ResourceSourceUrl } from "@apps/telegram-bot-domain";
 
 export class ScheduleDownloadUseCase {
   constructor(
     private readonly queueRepository: QueueRepository,
     private readonly resourceRepository: ResourceRepository,
+    private readonly logger: { info: Function; error: Function } = console,
   ) { }
 
-  // TODO destructure into private methods
   async execute(command: ScheduleDownloadCommand): Promise<ScheduleDownloadResult> {
     try {
       const { resourceUrl, chatId, messageId } = command
 
-      const existingResource = await this.resourceRepository.findBySourceUrl(resourceUrl)
-      if (existingResource) {
+      const existingCheck = await this.checkExistingResource(resourceUrl)
+      if (existingCheck) return existingCheck
+
+      const queuedCheck = await this.checkQueuedTask(resourceUrl)
+      if (queuedCheck) return queuedCheck
+
+      const createdTask = await this.createQueueTask(resourceUrl, chatId, messageId)
+      this.logger.info(`Scheduling download for ${command.resourceUrl}, ${createdTask.dto.taskId}`);
+      return createdTask
+    } catch (error: unknown) {
+      this.logger.error(`Error download for ${command.resourceUrl}`, error);
+
+      if (error instanceof Error) {
         return {
-          status: ScheduleDownloadStatus.AlreadyDownloaded,
-          resource: existingResource
+          status: ScheduleDownloadStatus.SystemError,
+          message: error.message
         }
       }
-
-      const queueTask = await this.queueRepository.findBySourceUrl(resourceUrl)
-      // TODO нужно оповещать пользователя в любом случае. даже если задача в очереди уже есть. как это сделать?
-      // TODO может быть для оповещений сделать отдельную таблицу?
-      if (queueTask && queueTask[0]) {
-        return {
-          status: ScheduleDownloadStatus.AlreadyQueued,
-          task: queueTask[0]
-        }
-      }
-
-      const newQueueTask = QueueTask.create(resourceUrl, chatId, messageId, 0)
-      await this.queueRepository.add(newQueueTask)
-
-      return {
-        status: ScheduleDownloadStatus.Success,
-        task: newQueueTask
-      }
-    } catch (error) {
-      // TODO смотри, у тебя есть вариант result - error. при этом, эррор ты не возвращаешь. нужно както это обрабатывать. либо возвращать error, либо убирать такую опцию из result
-      if (error instanceof DatabaseConnectionError) {
-        // TODO process error; log it
-        throw error;
-      }
-
-      if (error instanceof FileSystemError) {
-        // TODO process error; log it
-        throw error;
-      }
-
       throw error;
+    }
+  }
+
+  private async checkExistingResource(resourceUrl: ResourceSourceUrl): Promise<ScheduleDownloadResult | null> {
+    const existingResource = await this.resourceRepository.findBySourceUrl(resourceUrl)
+    if (existingResource) {
+      return {
+        status: ScheduleDownloadStatus.AlreadyDownloaded,
+        dto: { resourceId: existingResource.resourceId.toString() }
+      }
+    }
+    return null
+  }
+
+  private async checkQueuedTask(resourceUrl: ResourceSourceUrl): Promise<ScheduleDownloadResult | null> {
+    const queueTask = await this.queueRepository.findBySourceUrl(resourceUrl)
+    if (queueTask && queueTask[0]) {
+      const taskPosition = await this.queueRepository.getTaskPosition(queueTask[0].taskId)
+      return {
+        status: ScheduleDownloadStatus.AlreadyQueued,
+        dto: { taskId: queueTask[0].taskId.toString(), position: taskPosition }
+      }
+    }
+    return null
+  }
+
+  private async createQueueTask(resourceUrl: ResourceSourceUrl, chatId: TelegramChatId, messageId: TelegramMessageId): Promise<ScheduleDownloadResult> {
+    const newQueueTask = QueueTask.create(resourceUrl, chatId, messageId, 0)
+    await this.queueRepository.add(newQueueTask)
+    const taskPosition = await this.queueRepository.getTaskPosition(newQueueTask.taskId)
+
+    return {
+      status: ScheduleDownloadStatus.Success,
+      dto: {
+        taskId: newQueueTask.taskId.toString(),
+        chatId: newQueueTask.chatId.toString(),
+        messageId: newQueueTask.messageId.toString(),
+        position: taskPosition
+      }
     }
   }
 }
