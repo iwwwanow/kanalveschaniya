@@ -32,5 +32,13 @@ export type ScheduleDownloadResult =
       dto: AlreadyDownloadedDto;
     }
   | { status: ScheduleDownloadStatus.AlreadyQueued; dto: AlreadyQueuedDto }
-  | { status: ScheduleDownloadStatus.ValidationError; message: string }
-  | { status: ScheduleDownloadStatus.SystemError; message: string };
+  | {
+      status: ScheduleDownloadStatus.ValidationError;
+      dto: undefined;
+      message: string;
+    }
+  | {
+      status: ScheduleDownloadStatus.SystemError;
+      dto: undefined;
+      message: string;
+    };
