@@ -56,7 +56,7 @@ export class QueueTaskId {
 }
 
 export class QueueTaskPriority {
-  constructor(private readonly value: number) {
+  constructor(private value: number) {
     if (!this.isValid(value)) {
       throw new Error('Invalid QueueTaskPriority');
     }
@@ -78,6 +78,8 @@ export class QueueTaskPriority {
   toString(): string { return this.value.toString(); }
 
   getValue(): number { return this.value }
+
+  setValue(value: number): void { this.value = value }
 
   equals(other: QueueTaskPriority): boolean { return this.value === other.value; }
 }
@@ -105,6 +107,23 @@ export class QueueTaskStatus {
   getValue(): TaskStatusType { return this.value }
   setValue(value: TaskStatusType): void { this.value = value }
   equals(other: QueueTaskStatus): boolean { return this.value === other.value; }
+}
+
+export class QueueTaskErrorMessage {
+  constructor(private value: string) {
+    if (!this.isValid(value)) {
+      throw new Error('Invalid QueueTaskStatus');
+    }
+  }
+
+  private isValid(value: string): boolean {
+    // TODO
+    return true
+  }
+
+  getValue(): string { return this.value }
+  setValue(value: string): void { this.value = value }
+  equals(other: QueueTaskErrorMessage): boolean { return this.value === other.value; }
 }
 
 export class TelegramChatId {

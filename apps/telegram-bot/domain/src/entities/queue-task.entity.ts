@@ -1,4 +1,5 @@
 import { Entity } from "./base.entity";
+import type { QueueTaskErrorMessage } from "../value-objects";
 
 import { QueueTaskId } from "../value-objects";
 import { QueueTaskStatus } from "../value-objects";
@@ -15,6 +16,7 @@ export class QueueTask extends Entity<QueueTaskId> {
     public readonly sourceUrl: ResourceSourceUrl,
     public priority: QueueTaskPriority,
     public status: QueueTaskStatus,
+    public errorMessage: QueueTaskErrorMessage,
     // TODO telegram specific fields; mv it to special entity
     public readonly chatId: TelegramChatId,
     public readonly messageId: TelegramMessageId,
@@ -33,6 +35,17 @@ export class QueueTask extends Entity<QueueTaskId> {
       throw new Error('Task cannot be started');
     }
     this.status.setValue(TaskStatusType.Processing);
+    this.updatedAt = new Date();
+  }
+
+  complete(): void {
+    this.status.setValue(TaskStatusType.Downloaded);
+    this.priority.setValue(0);
+    this.updatedAt = new Date();
+  }
+
+  fail(errorMessage: string): void {
+    this.errorMessage.setValue(errorMessage);
     this.updatedAt = new Date();
   }
 
