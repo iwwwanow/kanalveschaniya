@@ -1,6 +1,5 @@
-import { Entity } from './base.entity';
-
 import type { ResourceId } from '../value-objects';
+import { Entity } from './base.entity';
 
 export class Resource extends Entity<ResourceId> {
   constructor(

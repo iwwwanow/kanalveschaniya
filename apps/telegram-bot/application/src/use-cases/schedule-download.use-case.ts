@@ -1,3 +1,6 @@
+import type { ScheduleDownloadCommand } from '../dtos';
+import type { ScheduleDownloadResult } from '../dtos';
+import { ScheduleDownloadStatus } from '../dtos';
 import { QueueTask } from '@apps/telegram-bot-domain';
 import type {
   QueueRepository,
@@ -5,9 +8,6 @@ import type {
   TelegramMessageId,
 } from '@apps/telegram-bot-domain';
 import type { ResourceRepository } from '@apps/telegram-bot-domain';
-import type { ScheduleDownloadCommand } from '../dtos';
-import type { ScheduleDownloadResult } from '../dtos';
-import { ScheduleDownloadStatus } from '../dtos';
 import type { ResourceSourceUrl } from '@apps/telegram-bot-domain';
 
 export class ScheduleDownloadUseCase {

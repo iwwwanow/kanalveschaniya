@@ -1,14 +1,12 @@
-import { Entity } from './base.entity';
 import type { QueueTaskErrorMessage } from '../value-objects';
-
 import { QueueTaskId } from '../value-objects';
 import { QueueTaskStatus } from '../value-objects';
 import { TaskStatusType } from '../value-objects';
 import { QueueTaskPriority } from '../value-objects';
 import type { ResourceSourceUrl } from '../value-objects';
-
 import type { TelegramChatId } from '../value-objects';
 import type { TelegramMessageId } from '../value-objects';
+import { Entity } from './base.entity';
 
 export class QueueTask extends Entity<QueueTaskId> {
   constructor(

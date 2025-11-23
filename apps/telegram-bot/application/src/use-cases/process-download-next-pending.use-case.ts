@@ -1,7 +1,7 @@
+import type { DownloadAdapter } from '../interfaces';
 import type { QueueRepository } from '@apps/telegram-bot-domain';
 import type { ResourceRepository } from '@apps/telegram-bot-domain';
 import { Resource } from '@apps/telegram-bot-domain';
-import type { DownloadAdapter } from '../interfaces';
 import { ResourceId } from '@apps/telegram-bot-domain';
 
 export class ProcessDownloadNextPendingUseCase {

@@ -1,5 +1,4 @@
 import { QueueTask } from '../entities';
-
 import type { ResourceSourceUrl } from '../value-objects';
 import type { QueueTaskId } from '../value-objects';
 import type { QueueTaskStatus } from '../value-objects';
