@@ -7,7 +7,15 @@ export class Resource extends Entity<ResourceId> {
     public resourceId: ResourceId,
     // TODO filepath?
     public readonly filename: string,
-    public readonly sourceUrl: string
+    public readonly filepath: string,
+    public readonly sourceUrl: string,
+    // TODO
+    // public readonly fileSize?: number,
+    // TODO vo
+    // public readonly metadata?: {
+    //   duration?: number;
+    //   format?: string;
+    // }
   ) {
     super(resourceId)
   }

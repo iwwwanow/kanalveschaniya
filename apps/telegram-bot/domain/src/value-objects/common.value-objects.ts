@@ -4,6 +4,7 @@ export class ResourceId {
     if (!this.isValid(value)) {
       throw new Error('Invalid ResourceId');
     }
+
   }
 
   private isValid(value: string): boolean {
@@ -13,6 +14,10 @@ export class ResourceId {
 
   toString(): string { return this.value; }
   equals(other: ResourceId): boolean { return this.value === other.value; }
+
+  static generate(): ResourceId {
+    return new ResourceId(crypto.randomUUID());
+  }
 }
 
 export class ResourceSourceUrl {
