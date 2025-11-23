@@ -1,1 +1,1 @@
-export * from './download-adapter.interface'
+export * from './download-adapter.interface';

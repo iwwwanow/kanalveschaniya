@@ -13,6 +13,7 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "bot:dev": "bun --env-file=.env.local --filter '@apps/bot-entrypoint' dev"
+    "bot:dev": "bun --env-file=.env.local --filter '@apps/bot-entrypoint' dev",
+    "format": "prettier --write ."
   }
 }

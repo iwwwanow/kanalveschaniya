@@ -1,71 +1,96 @@
-import { QueueTask } from "@apps/telegram-bot-domain";
-import type { QueueRepository, TelegramChatId, TelegramMessageId } from "@apps/telegram-bot-domain";
-import type { ResourceRepository } from "@apps/telegram-bot-domain";
-import type { ScheduleDownloadCommand } from "../dtos";
-import type { ScheduleDownloadResult } from "../dtos";
-import { ScheduleDownloadStatus } from "../dtos";
-import type { ResourceSourceUrl } from "@apps/telegram-bot-domain";
+import { QueueTask } from '@apps/telegram-bot-domain';
+import type {
+  QueueRepository,
+  TelegramChatId,
+  TelegramMessageId,
+} from '@apps/telegram-bot-domain';
+import type { ResourceRepository } from '@apps/telegram-bot-domain';
+import type { ScheduleDownloadCommand } from '../dtos';
+import type { ScheduleDownloadResult } from '../dtos';
+import { ScheduleDownloadStatus } from '../dtos';
+import type { ResourceSourceUrl } from '@apps/telegram-bot-domain';
 
 export class ScheduleDownloadUseCase {
   constructor(
     private readonly queueRepository: QueueRepository,
     private readonly resourceRepository: ResourceRepository,
     private readonly logger: { info: Function; error: Function } = console,
-  ) { }
+  ) {}
 
-  async execute(command: ScheduleDownloadCommand): Promise<ScheduleDownloadResult> {
+  async execute(
+    command: ScheduleDownloadCommand,
+  ): Promise<ScheduleDownloadResult> {
     try {
-      const { resourceUrl, chatId, messageId } = command
+      const { resourceUrl, chatId, messageId } = command;
 
-      const existingCheck = await this.checkExistingResource(resourceUrl)
-      if (existingCheck) return existingCheck
+      const existingCheck = await this.checkExistingResource(resourceUrl);
+      if (existingCheck) return existingCheck;
 
-      const queuedCheck = await this.checkQueuedTask(resourceUrl)
-      if (queuedCheck) return queuedCheck
+      const queuedCheck = await this.checkQueuedTask(resourceUrl);
+      if (queuedCheck) return queuedCheck;
 
-      const createdTask = await this.createQueueTask(resourceUrl, chatId, messageId)
-      this.logger.info(`Scheduling download for ${command.resourceUrl}, ${createdTask.dto.taskId}`);
-      return createdTask
+      const createdTask = await this.createQueueTask(
+        resourceUrl,
+        chatId,
+        messageId,
+      );
+      this.logger.info(
+        `Scheduling download for ${command.resourceUrl}, ${createdTask.dto.taskId}`,
+      );
+      return createdTask;
     } catch (error: unknown) {
       this.logger.error(`Error download for ${command.resourceUrl}`, error);
 
       if (error instanceof Error) {
         return {
           status: ScheduleDownloadStatus.SystemError,
-          message: error.message
-        }
+          message: error.message,
+        };
       }
       throw error;
     }
   }
 
-  private async checkExistingResource(resourceUrl: ResourceSourceUrl): Promise<ScheduleDownloadResult | null> {
-    const existingResource = await this.resourceRepository.findBySourceUrl(resourceUrl)
+  private async checkExistingResource(
+    resourceUrl: ResourceSourceUrl,
+  ): Promise<ScheduleDownloadResult | null> {
+    const existingResource =
+      await this.resourceRepository.findBySourceUrl(resourceUrl);
     if (existingResource) {
       return {
         status: ScheduleDownloadStatus.AlreadyDownloaded,
-        dto: { resourceId: existingResource.resourceId.toString() }
-      }
+        dto: { resourceId: existingResource.resourceId.toString() },
+      };
     }
-    return null
+    return null;
   }
 
-  private async checkQueuedTask(resourceUrl: ResourceSourceUrl): Promise<ScheduleDownloadResult | null> {
-    const queueTask = await this.queueRepository.findBySourceUrl(resourceUrl)
+  private async checkQueuedTask(
+    resourceUrl: ResourceSourceUrl,
+  ): Promise<ScheduleDownloadResult | null> {
+    const queueTask = await this.queueRepository.findBySourceUrl(resourceUrl);
     if (queueTask && queueTask[0]) {
-      const taskPosition = await this.queueRepository.getTaskPosition(queueTask[0].taskId)
+      const taskPosition = await this.queueRepository.getTaskPosition(
+        queueTask[0].taskId,
+      );
       return {
         status: ScheduleDownloadStatus.AlreadyQueued,
-        dto: { taskId: queueTask[0].taskId.toString(), position: taskPosition }
-      }
+        dto: { taskId: queueTask[0].taskId.toString(), position: taskPosition },
+      };
     }
-    return null
+    return null;
   }
 
-  private async createQueueTask(resourceUrl: ResourceSourceUrl, chatId: TelegramChatId, messageId: TelegramMessageId): Promise<ScheduleDownloadResult> {
-    const newQueueTask = QueueTask.create(resourceUrl, chatId, messageId, 0)
-    await this.queueRepository.add(newQueueTask)
-    const taskPosition = await this.queueRepository.getTaskPosition(newQueueTask.taskId)
+  private async createQueueTask(
+    resourceUrl: ResourceSourceUrl,
+    chatId: TelegramChatId,
+    messageId: TelegramMessageId,
+  ): Promise<ScheduleDownloadResult> {
+    const newQueueTask = QueueTask.create(resourceUrl, chatId, messageId, 0);
+    await this.queueRepository.add(newQueueTask);
+    const taskPosition = await this.queueRepository.getTaskPosition(
+      newQueueTask.taskId,
+    );
 
     return {
       status: ScheduleDownloadStatus.Success,
@@ -73,8 +98,8 @@ export class ScheduleDownloadUseCase {
         taskId: newQueueTask.taskId.toString(),
         chatId: newQueueTask.chatId.toString(),
         messageId: newQueueTask.messageId.toString(),
-        position: taskPosition
-      }
-    }
+        position: taskPosition,
+      },
+    };
   }
 }

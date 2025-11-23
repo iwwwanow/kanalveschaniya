@@ -4,7 +4,6 @@ export class ResourceId {
     if (!this.isValid(value)) {
       throw new Error('Invalid ResourceId');
     }
-
   }
 
   private isValid(value: string): boolean {
@@ -12,8 +11,12 @@ export class ResourceId {
     return /^[a-zA-Z0-9_-]{8,}$/.test(value);
   }
 
-  toString(): string { return this.value; }
-  equals(other: ResourceId): boolean { return this.value === other.value; }
+  toString(): string {
+    return this.value;
+  }
+  equals(other: ResourceId): boolean {
+    return this.value === other.value;
+  }
 
   static generate(): ResourceId {
     return new ResourceId(crypto.randomUUID());
@@ -36,8 +39,12 @@ export class ResourceSourceUrl {
     }
   }
 
-  toString(): string { return this.value; }
-  equals(other: ResourceSourceUrl): boolean { return this.value === other.value; }
+  toString(): string {
+    return this.value;
+  }
+  equals(other: ResourceSourceUrl): boolean {
+    return this.value === other.value;
+  }
 }
 
 export class QueueTaskId {
@@ -52,8 +59,12 @@ export class QueueTaskId {
     return /^[a-zA-Z0-9_-]{8,}$/.test(value);
   }
 
-  toString(): string { return this.value; }
-  equals(other: QueueTaskId): boolean { return this.value === other.value; }
+  toString(): string {
+    return this.value;
+  }
+  equals(other: QueueTaskId): boolean {
+    return this.value === other.value;
+  }
 
   static generate(): QueueTaskId {
     return new QueueTaskId(crypto.randomUUID());
@@ -80,13 +91,21 @@ export class QueueTaskPriority {
     return value >= -1 && value <= 10;
   }
 
-  toString(): string { return this.value.toString(); }
+  toString(): string {
+    return this.value.toString();
+  }
 
-  getValue(): number { return this.value }
+  getValue(): number {
+    return this.value;
+  }
 
-  setValue(value: number): void { this.value = value }
+  setValue(value: number): void {
+    this.value = value;
+  }
 
-  equals(other: QueueTaskPriority): boolean { return this.value === other.value; }
+  equals(other: QueueTaskPriority): boolean {
+    return this.value === other.value;
+  }
 }
 
 // TODO destructure
@@ -108,10 +127,18 @@ export class QueueTaskStatus {
     return Object.values(TaskStatusType).includes(value);
   }
 
-  toString(): string { return this.value; }
-  getValue(): TaskStatusType { return this.value }
-  setValue(value: TaskStatusType): void { this.value = value }
-  equals(other: QueueTaskStatus): boolean { return this.value === other.value; }
+  toString(): string {
+    return this.value;
+  }
+  getValue(): TaskStatusType {
+    return this.value;
+  }
+  setValue(value: TaskStatusType): void {
+    this.value = value;
+  }
+  equals(other: QueueTaskStatus): boolean {
+    return this.value === other.value;
+  }
 }
 
 export class QueueTaskErrorMessage {
@@ -123,24 +150,38 @@ export class QueueTaskErrorMessage {
 
   private isValid(value: string): boolean {
     // TODO
-    return true
+    return true;
   }
 
-  getValue(): string { return this.value }
-  setValue(value: string): void { this.value = value }
-  equals(other: QueueTaskErrorMessage): boolean { return this.value === other.value; }
+  getValue(): string {
+    return this.value;
+  }
+  setValue(value: string): void {
+    this.value = value;
+  }
+  equals(other: QueueTaskErrorMessage): boolean {
+    return this.value === other.value;
+  }
 }
 
 export class TelegramChatId {
   // TODO is valid
-  constructor(private readonly value: string) { }
-  toString(): string { return this.value; }
-  equals(other: TelegramChatId): boolean { return this.value === other.value; }
+  constructor(private readonly value: string) {}
+  toString(): string {
+    return this.value;
+  }
+  equals(other: TelegramChatId): boolean {
+    return this.value === other.value;
+  }
 }
 
 export class TelegramMessageId {
   // TODO is valid
-  constructor(private readonly value: string) { }
-  toString(): string { return this.value; }
-  equals(other: TelegramMessageId): boolean { return this.value === other.value; }
+  constructor(private readonly value: string) {}
+  toString(): string {
+    return this.value;
+  }
+  equals(other: TelegramMessageId): boolean {
+    return this.value === other.value;
+  }
 }

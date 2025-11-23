@@ -1,6 +1,6 @@
-import { Entity } from "./base.entity";
+import { Entity } from './base.entity';
 
-import type { ResourceId } from "../value-objects";
+import type { ResourceId } from '../value-objects';
 
 export class Resource extends Entity<ResourceId> {
   constructor(
@@ -17,7 +17,7 @@ export class Resource extends Entity<ResourceId> {
     //   format?: string;
     // }
   ) {
-    super(resourceId)
+    super(resourceId);
   }
 
   isValid(): boolean {

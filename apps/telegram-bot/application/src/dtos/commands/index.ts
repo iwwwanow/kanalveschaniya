@@ -1,1 +1,1 @@
-export * from './schedule-download.command'
+export * from './schedule-download.command';

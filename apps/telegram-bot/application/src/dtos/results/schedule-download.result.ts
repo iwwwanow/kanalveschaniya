@@ -1,5 +1,5 @@
-import type { QueueTask } from "@apps/telegram-bot-domain"
-import type { Resource } from "@apps/telegram-bot-domain"
+import type { QueueTask } from '@apps/telegram-bot-domain';
+import type { Resource } from '@apps/telegram-bot-domain';
 
 export enum ScheduleDownloadStatus {
   Success = 'success',
@@ -10,24 +10,27 @@ export enum ScheduleDownloadStatus {
 }
 
 export interface SuccessDto {
-  taskId: string
-  chatId: string
-  messageId: string
-  position: number
+  taskId: string;
+  chatId: string;
+  messageId: string;
+  position: number;
 }
 
 export interface AlreadyQueuedDto {
-  taskId: string
-  position: number
+  taskId: string;
+  position: number;
 }
 
 export interface AlreadyDownloadedDto {
-  resourceId: string
+  resourceId: string;
 }
 
 export type ScheduleDownloadResult =
   | { status: ScheduleDownloadStatus.Success; dto: SuccessDto }
-  | { status: ScheduleDownloadStatus.AlreadyDownloaded; dto: AlreadyDownloadedDto }
+  | {
+      status: ScheduleDownloadStatus.AlreadyDownloaded;
+      dto: AlreadyDownloadedDto;
+    }
   | { status: ScheduleDownloadStatus.AlreadyQueued; dto: AlreadyQueuedDto }
   | { status: ScheduleDownloadStatus.ValidationError; message: string }
   | { status: ScheduleDownloadStatus.SystemError; message: string };

@@ -1,2 +1,2 @@
-export * from './schedule-download.result'
-export * from './download.result'
+export * from './schedule-download.result';
+export * from './download.result';

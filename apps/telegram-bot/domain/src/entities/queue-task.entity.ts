@@ -1,14 +1,14 @@
-import { Entity } from "./base.entity";
-import type { QueueTaskErrorMessage } from "../value-objects";
+import { Entity } from './base.entity';
+import type { QueueTaskErrorMessage } from '../value-objects';
 
-import { QueueTaskId } from "../value-objects";
-import { QueueTaskStatus } from "../value-objects";
-import { TaskStatusType } from "../value-objects";
-import { QueueTaskPriority } from "../value-objects";
-import type { ResourceSourceUrl } from "../value-objects";
+import { QueueTaskId } from '../value-objects';
+import { QueueTaskStatus } from '../value-objects';
+import { TaskStatusType } from '../value-objects';
+import { QueueTaskPriority } from '../value-objects';
+import type { ResourceSourceUrl } from '../value-objects';
 
-import type { TelegramChatId } from "../value-objects";
-import type { TelegramMessageId } from "../value-objects";
+import type { TelegramChatId } from '../value-objects';
+import type { TelegramMessageId } from '../value-objects';
 
 export class QueueTask extends Entity<QueueTaskId> {
   constructor(
@@ -21,13 +21,13 @@ export class QueueTask extends Entity<QueueTaskId> {
     public readonly chatId: TelegramChatId,
     public readonly messageId: TelegramMessageId,
     public readonly createdAt: Date = new Date(),
-    public updatedAt: Date
+    public updatedAt: Date,
   ) {
-    super(taskId)
+    super(taskId);
   }
 
   canStart(): boolean {
-    return this.status.getValue() === TaskStatusType.Pending
+    return this.status.getValue() === TaskStatusType.Pending;
   }
 
   start(): void {
@@ -53,7 +53,7 @@ export class QueueTask extends Entity<QueueTaskId> {
     sourceUrl: ResourceSourceUrl,
     chatId: TelegramChatId,
     messageId: TelegramMessageId,
-    priority: number = 0
+    priority: number = 0,
   ): QueueTask {
     return new QueueTask(
       QueueTaskId.generate(),
@@ -63,7 +63,7 @@ export class QueueTask extends Entity<QueueTaskId> {
       chatId,
       messageId,
       new Date(),
-      new Date()
+      new Date(),
     );
   }
 }
