@@ -1,15 +1,18 @@
-import type { QueueRepository } from "@apps/telegram-bot-domain";
-import type { ResourceRepository } from "@apps/telegram-bot-domain";
-import { Resource } from "@apps/telegram-bot-domain";
-import type { DownloadAdapter } from "../interfaces";
-import { ResourceId } from "@apps/telegram-bot-domain";
+import type { QueueRepository } from '@apps/telegram-bot-domain';
+import type { ResourceRepository } from '@apps/telegram-bot-domain';
+import { Resource } from '@apps/telegram-bot-domain';
+import type { DownloadAdapter } from '../interfaces';
+import { ResourceId } from '@apps/telegram-bot-domain';
 
 export class ProcessDownloadNextPendingUseCase {
   constructor(
     private readonly queueRepository: QueueRepository,
     private readonly resourceRepository: ResourceRepository,
-    private readonly logger: { info: Function; error: Function } = console
-  ) { }
+    private readonly logger: {
+      info: Function;
+      error: Function;
+    } = console,
+  ) {}
 
   async execute(downloadAdapter: DownloadAdapter): Promise<void> {
     const task = await this.queueRepository.findNextPending();
@@ -32,21 +35,23 @@ export class ProcessDownloadNextPendingUseCase {
       // скорее всего это будет stream
       // на каком уровне записывать запись на диск
 
-      const { filename: downloadResultFilename, filePath: downloadResultFilepath } = downloadResult
+      const {
+        filename: downloadResultFilename,
+        filePath: downloadResultFilepath,
+      } = downloadResult;
       if (downloadResultFilename && downloadResultFilepath) {
         const resource = new Resource(
           ResourceId.generate(),
           downloadResultFilename,
           downloadResultFilepath,
-          task.sourceUrl.toString()
-        )
+          task.sourceUrl.toString(),
+        );
 
-        this.resourceRepository.save(resource)
+        this.resourceRepository.save(resource);
       }
 
       task.complete();
       await this.queueRepository.updateStatus(task.taskId, task.status);
-
     } catch (error) {
       this.logger.error(`Download error for ${task.sourceUrl.toString()}`);
 
@@ -55,7 +60,7 @@ export class ProcessDownloadNextPendingUseCase {
         await this.queueRepository.updateStatus(task.taskId, task.status);
       }
 
-      throw error
+      throw error;
     }
   }
 }
