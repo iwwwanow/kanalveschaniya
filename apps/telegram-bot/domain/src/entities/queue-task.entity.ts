@@ -70,12 +70,18 @@ export class QueueTask extends Entity<QueueTaskId> {
   static create(
     props: Omit<
       QueueTaskProps,
-      'taskId' | 'createdAt' | 'updatedAt' | 'status' | 'errorMessage'
+      | 'taskId'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'status'
+      | 'errorMessage'
+      | 'priority'
     >,
   ): QueueTask {
     return new QueueTask({
       ...props,
       taskId: QueueTaskId.generate(),
+      priority: new QueueTaskPriority(0),
       status: new QueueTaskStatus(TaskStatusType.Pending),
       errorMessage: new QueueTaskErrorMessage(''),
       createdAt: new Date(),

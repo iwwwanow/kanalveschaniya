@@ -86,7 +86,11 @@ export class ScheduleDownloadUseCase {
     chatId: TelegramChatId,
     messageId: TelegramMessageId,
   ): Promise<ScheduleDownloadResult> {
-    const newQueueTask = QueueTask.create(resourceUrl, chatId, messageId, 0);
+    const newQueueTask = QueueTask.create({
+      sourceUrl: resourceUrl,
+      chatId,
+      messageId,
+    });
     await this.queueRepository.add(newQueueTask);
     const taskPosition = await this.queueRepository.getTaskPosition(
       newQueueTask.taskId,
