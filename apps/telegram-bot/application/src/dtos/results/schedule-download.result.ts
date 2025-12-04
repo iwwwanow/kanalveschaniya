@@ -25,8 +25,15 @@ export interface AlreadyDownloadedDto {
   resourceId: string;
 }
 
+// TODO refactor
+export interface ScheduleDownloadSuccessResult {
+  status: ScheduleDownloadStatus.Success;
+  dto: SuccessDto;
+}
+
+// TODO refactor
 export type ScheduleDownloadResult =
-  | { status: ScheduleDownloadStatus.Success; dto: SuccessDto }
+  | ScheduleDownloadSuccessResult
   | {
       status: ScheduleDownloadStatus.AlreadyDownloaded;
       dto: AlreadyDownloadedDto;
@@ -34,11 +41,9 @@ export type ScheduleDownloadResult =
   | { status: ScheduleDownloadStatus.AlreadyQueued; dto: AlreadyQueuedDto }
   | {
       status: ScheduleDownloadStatus.ValidationError;
-      dto: undefined;
       message: string;
     }
   | {
       status: ScheduleDownloadStatus.SystemError;
-      dto: undefined;
       message: string;
     };

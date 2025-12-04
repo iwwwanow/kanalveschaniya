@@ -1,5 +1,6 @@
 import type { ScheduleDownloadCommand } from '../dtos';
 import type { ScheduleDownloadResult } from '../dtos';
+import type { ScheduleDownloadSuccessResult } from '../dtos';
 import { ScheduleDownloadStatus } from '../dtos';
 import { QueueTask } from '@apps/telegram-bot-domain';
 import type {
@@ -34,8 +35,9 @@ export class ScheduleDownloadUseCase {
         chatId,
         messageId,
       );
+
       this.logger.info(
-        `Scheduling download for ${command.resourceUrl}, ${createdTask.dto.taskId}`,
+        `Scheduling download for ${command.resourceUrl}, ${createdTask.dto?.taskId as string}`,
       );
       return createdTask;
     } catch (error: unknown) {
@@ -85,7 +87,7 @@ export class ScheduleDownloadUseCase {
     resourceUrl: ResourceSourceUrl,
     chatId: TelegramChatId,
     messageId: TelegramMessageId,
-  ): Promise<ScheduleDownloadResult> {
+  ): Promise<ScheduleDownloadSuccessResult> {
     const newQueueTask = QueueTask.create({
       sourceUrl: resourceUrl,
       chatId,
