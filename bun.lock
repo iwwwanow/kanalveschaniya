@@ -20,11 +20,19 @@
     "apps/telegram-bot/domain": {
       "name": "@apps/telegram-bot-domain",
     },
+    "apps/telegram-bot/infrastructure": {
+      "name": "@apps/telegram-bot-infrastructure",
+      "dependencies": {
+        "@apps/telegram-bot-application": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@apps/telegram-bot-application": ["@apps/telegram-bot-application@workspace:apps/telegram-bot/application"],
 
     "@apps/telegram-bot-domain": ["@apps/telegram-bot-domain@workspace:apps/telegram-bot/domain"],
+
+    "@apps/telegram-bot-infrastructure": ["@apps/telegram-bot-infrastructure@workspace:apps/telegram-bot/infrastructure"],
 
     "@babel/code-frame": ["@babel/code-frame@7.27.1", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.27.1", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg=="],
 
