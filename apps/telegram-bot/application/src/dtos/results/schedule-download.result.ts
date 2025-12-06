@@ -1,6 +1,3 @@
-import type { QueueTask } from '@apps/telegram-bot-domain';
-import type { Resource } from '@apps/telegram-bot-domain';
-
 export enum ScheduleDownloadStatus {
   Success = 'success',
   AlreadyDownloaded = 'already_downloaded',
