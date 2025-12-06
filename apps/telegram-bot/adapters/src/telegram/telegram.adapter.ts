@@ -1,3 +1,4 @@
+import { ruLocales } from '../locales';
 import { ScheduleDownloadUseCase } from '@apps/telegram-bot-application';
 import { ScheduleDownloadCommand } from '@apps/telegram-bot-application';
 import { ResourceSourceUrl } from '@apps/telegram-bot-domain';
@@ -40,27 +41,29 @@ export class TelegramAdapter {
     });
   }
 
-  // TODO locales
   // TODO interfaces
   private async sendResponse(ctx, result): Promise<void> {
     switch (result.status) {
       case 'success':
         await ctx.reply(
-          `✅ Добавлено! Позиция в очереди: ${result.dto.position}`,
+          `${ruLocales['telegram.success']} ${result.dto.position}`,
         );
         break;
+      // FIX: kebab-case
       case 'already_queued':
-        await ctx.reply(`⏳ Уже в очереди! Позиция: ${result.dto.position}`);
+        await ctx.reply(
+          `${ruLocales['telegram.already-queued']} ${result.dto.position}`,
+        );
         break;
       case 'already_downloaded':
         // TODO: отправить файл пользователю
-        await ctx.reply(`📁 Уже скачано!`);
+        await ctx.reply(ruLocales['telegram.already-downloaded']);
         break;
       case 'validation_error':
-        await ctx.reply(`❌ Ошибка: ${result.message}`);
+        await ctx.reply(ruLocales['telegram.validation-error']);
         break;
       default:
-        await ctx.reply('🤔 Что-то пошло не так');
+        await ctx.reply(ruLocales['telegram.default']);
     }
   }
 
