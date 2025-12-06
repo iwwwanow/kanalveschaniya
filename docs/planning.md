@@ -4,84 +4,43 @@
 
 [ ] Создать пакет `@apps/telegram-bot-infrastructure`
 [ ] Установить зависимости: drizzle-orm, sqlite3, dotenv
-[ ] Создать схему БД:
-    - queue_tasks таблица с полями из QueueTask
-    - resources таблица с полями из Resource
+[ ] Создать схему БД: - queue_tasks таблица с полями из QueueTask - resources таблица с полями из Resource
 [ ] Настроить миграции Drizzle
-[ ] Реализовать DrizzleQueueRepository:
-    - add(), remove(), findBySourceUrl(), findNextPending()
-    - updateStatus(), getTaskPosition()
-[ ] Реализовать DrizzleResourceRepository:
-    - save(), findById(), findBySourceUrl(), delete()
+[ ] Реализовать DrizzleQueueRepository: - add(), remove(), findBySourceUrl(), findNextPending() - updateStatus(), getTaskPosition()
+[ ] Реализовать DrizzleResourceRepository: - save(), findById(), findBySourceUrl(), delete()
 
 2. Adapters
 
-[ ] Реализовать DockerDownloadAdapter:
-    - HTTP клиент к внешнему сервису
-    - Запись файлов на диск
-    - Генерация имен файлов
-[ ] Создать NotificationAdapter (Telegram):
-    - sendMessage(), sendFile()
-[ ] Реализовать простой логгер:
-    - info(), error(), debug()
+[ ] Реализовать DockerDownloadAdapter: - HTTP клиент к внешнему сервису - Запись файлов на диск - Генерация имен файлов
+[ ] Создать NotificationAdapter (Telegram): - sendMessage(), sendFile()
+[ ] Реализовать простой логгер: - info(), error(), debug()
 
 3.Composition Root
 
-[ ] Создать CompositionRoot:
-    - Инициализация БД
-    - Создание репозиториев
-    - Создание Use Cases
-    - Создание адаптеров
-[ ] Настроить конфигурацию:
-    - .env файл с переменными
-    - Конфиг для путей к файлам
+[ ] Создать CompositionRoot: - Инициализация БД - Создание репозиториев - Создание Use Cases - Создание адаптеров
+[ ] Настроить конфигурацию: - .env файл с переменными - Конфиг для путей к файлам
 
 4. Telegraf
 
 [ ] Установить telegraf и зависимости
-[ ] Создать TelegramBotAdapter:
-    - Команда /download <url>
-    - Обработка ScheduleDownloadResult
-    - Отправка файлов если уже скачано
-[ ] Настроить обработку ошибок:
-    - Валидация URL
-    - Форматирование сообщений об ошибках
+[ ] Создать TelegramBotAdapter: - Команда /download <url> - Обработка ScheduleDownloadResult - Отправка файлов если уже скачано
+[ ] Настроить обработку ошибок: - Валидация URL - Форматирование сообщений об ошибках
 
 5. Background tasks
 
-[ ] Создать DownloadQueueProcessor:
-    - Интервал обработки очереди (каждые 30 сек)
-    - Обработка одной задачи за раз
-    - Логирование прогресса
-[ ] Настроить graceful shutdown:
-    - Остановка крон задач
-    - Закрытие соединений с БД
+[ ] Создать DownloadQueueProcessor: - Интервал обработки очереди (каждые 30 сек) - Обработка одной задачи за раз - Логирование прогресса
+[ ] Настроить graceful shutdown: - Остановка крон задач - Закрытие соединений с БД
 
 6. Integrations
 
-[ ] Создать main.ts - точка входа:
-    - Инициализация CompositionRoot
-    - Запуск Telegram бота
-    - Запуск фоновых задач
-    - Graceful shutdown
-[ ] Написать простые скрипты:
-    - dev: запуск в development
-    - build: сборка TypeScript
-    - start: запуск в production
+[ ] Создать main.ts - точка входа: - Инициализация CompositionRoot - Запуск Telegram бота - Запуск фоновых задач - Graceful shutdown
+[ ] Написать простые скрипты: - dev: запуск в development - build: сборка TypeScript - start: запуск в production
 
 7. Test & fixes
 
-[ ] Протестировать полный цикл:
-    - /download → добавление в очередь
-    - Обработка очереди → скачивание
-    - Сохранение файла → уведомление
-[ ] Починить баги:
-    - Race conditions (unique constraint на sourceUrl)
-    - Обработка ошибок скачивания
-    - Очистка временных файлов
-[ ] Добавить базовую документацию:
-    - .env.example
-    - README с инструкцией запуска
+[ ] Протестировать полный цикл: - /download → добавление в очередь - Обработка очереди → скачивание - Сохранение файла → уведомление
+[ ] Починить баги: - Race conditions (unique constraint на sourceUrl) - Обработка ошибок скачивания - Очистка временных файлов
+[ ] Добавить базовую документацию: - .env.example - README с инструкцией запуска
 
 ---
 
