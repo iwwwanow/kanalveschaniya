@@ -3,5 +3,6 @@
   "telegram.already-queued": "already queued, position:",
   "telegram.already-downloaded": "already downloaded",
   "telegram.validation-error": "validation error",
+  "telegram.empty-url-error": "validation error",
   "telegram.default": "default response"
 }

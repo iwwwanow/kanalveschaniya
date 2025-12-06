@@ -1,4 +1,5 @@
 import { ruLocales } from '../locales';
+import { ScheduleDownloadStatus } from '@apps/telegram-bot-application';
 import { ScheduleDownloadUseCase } from '@apps/telegram-bot-application';
 import type { ScheduleDownloadResult } from '@apps/telegram-bot-application';
 import { ScheduleDownloadCommand } from '@apps/telegram-bot-application';
@@ -23,7 +24,9 @@ export class TelegramAdapter {
     this.bot.command('download', async (ctx) => {
       const url = ctx.message.text.split(' ')[1];
 
-      // TODO empty string exception
+      if (!url) {
+        return await ctx.reply(ruLocales['telegram.empty-url-error']);
+      }
 
       const resourceUrl = new ResourceSourceUrl(url);
       const chatId = new TelegramChatId(ctx.chat.id.toString());
@@ -48,24 +51,25 @@ export class TelegramAdapter {
     result: ScheduleDownloadResult,
   ): Promise<void> {
     switch (result.status) {
-      case 'success':
+      case ScheduleDownloadStatus.Success:
         await ctx.reply(
           `${ruLocales['telegram.success']} ${result.dto.position}`,
         );
         break;
       // FIX: kebab-case
-      case 'already_queued':
+      case ScheduleDownloadStatus.AlreadyQueued:
         await ctx.reply(
           `${ruLocales['telegram.already-queued']} ${result.dto.position}`,
         );
         break;
-      case 'already_downloaded':
+      case ScheduleDownloadStatus.AlreadyDownloaded:
         // TODO: отправить файл пользователю
         await ctx.reply(ruLocales['telegram.already-downloaded']);
         break;
-      case 'validation_error':
+      case ScheduleDownloadStatus.ValidationError:
         await ctx.reply(ruLocales['telegram.validation-error']);
         break;
+      // TODO: system error
       default:
         await ctx.reply(ruLocales['telegram.default']);
     }
