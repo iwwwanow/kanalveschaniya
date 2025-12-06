@@ -1,10 +1,12 @@
 import { ruLocales } from '../locales';
 import { ScheduleDownloadUseCase } from '@apps/telegram-bot-application';
+import type { ScheduleDownloadResult } from '@apps/telegram-bot-application';
 import { ScheduleDownloadCommand } from '@apps/telegram-bot-application';
 import { ResourceSourceUrl } from '@apps/telegram-bot-domain';
 import { TelegramChatId } from '@apps/telegram-bot-domain';
 import { TelegramMessageId } from '@apps/telegram-bot-domain';
 import { Telegraf } from 'telegraf';
+import { Context } from 'telegraf';
 
 export class TelegramAdapter {
   bot: Telegraf;
@@ -41,8 +43,10 @@ export class TelegramAdapter {
     });
   }
 
-  // TODO interfaces
-  private async sendResponse(ctx, result): Promise<void> {
+  private async sendResponse(
+    ctx: Context,
+    result: ScheduleDownloadResult,
+  ): Promise<void> {
     switch (result.status) {
       case 'success':
         await ctx.reply(
