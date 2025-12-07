@@ -12,7 +12,7 @@ export class ResourceRepositoryImpl implements ResourceRepository {
     // TODO
   }
 
-  async findBySourceUrl(
+  async findFirstBySourceUrl(
     resourceSourceUrl: ResourceSourceUrl,
   ): Promise<Resource | null> {
     // TODO

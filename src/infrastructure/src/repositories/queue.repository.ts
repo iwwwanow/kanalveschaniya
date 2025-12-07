@@ -13,7 +13,7 @@ export class QueueRepositoryImpl implements QueueRepository {
     // TODO
   }
 
-  async findBySourceUrl(
+  async findFirstBySourceUrl(
     taskUrl: ResourceSourceUrl,
   ): Promise<Array<QueueTask> | null> {}
 

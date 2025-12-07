@@ -57,7 +57,7 @@ export class ScheduleDownloadUseCase {
     resourceUrl: ResourceSourceUrl,
   ): Promise<ScheduleDownloadResult | null> {
     const existingResource =
-      await this.resourceRepository.findBySourceUrl(resourceUrl);
+      await this.resourceRepository.findFirstBySourceUrl(resourceUrl);
     if (existingResource) {
       return {
         status: ScheduleDownloadStatus.AlreadyDownloaded,
@@ -70,14 +70,15 @@ export class ScheduleDownloadUseCase {
   private async checkQueuedTask(
     resourceUrl: ResourceSourceUrl,
   ): Promise<ScheduleDownloadResult | null> {
-    const queueTask = await this.queueRepository.findBySourceUrl(resourceUrl);
-    if (queueTask && queueTask[0]) {
+    const queueTask =
+      await this.queueRepository.findFirstBySourceUrl(resourceUrl);
+    if (queueTask) {
       const taskPosition = await this.queueRepository.getTaskPosition(
-        queueTask[0].taskId,
+        queueTask.taskId,
       );
       return {
         status: ScheduleDownloadStatus.AlreadyQueued,
-        dto: { taskId: queueTask[0].taskId.toString(), position: taskPosition },
+        dto: { taskId: queueTask.taskId.toString(), position: taskPosition },
       };
     }
     return null;
