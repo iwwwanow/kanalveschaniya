@@ -1,0 +1,11 @@
+{
+  "name": "@infrastructure",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@application": "workspace:*",
+    "@domain": "workspace:*"
+  }
+}

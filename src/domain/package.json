@@ -1,5 +1,5 @@
 {
-  "name": "@apps/telegram-bot-domain",
+  "name": "@domain",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

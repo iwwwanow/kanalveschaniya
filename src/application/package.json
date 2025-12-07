@@ -1,10 +1,10 @@
 {
-  "name": "@apps/telegram-bot-application",
+  "name": "@application",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@apps/telegram-bot-domain": "workspace:*"
+    "@domain": "workspace:*"
   }
 }
