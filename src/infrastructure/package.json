@@ -9,5 +9,8 @@
     "@domain": "workspace:*",
     "drizzle-orm": "0.45.0",
     "telegraf": "4.16.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.8"
   }
 }
