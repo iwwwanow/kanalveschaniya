@@ -13,8 +13,10 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "bot:dev": "bun --env-file=.env.local --filter '@apps/bot-entrypoint' dev",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:push": "bun --env-file=.env.dev --filter '@infrastructure' db:push",
+    "db:generate": "bun --env-file=.env.dev --filter '@infrastructure' db:generate",
+    "db:migrate": "bun --env-file=.env.dev --filter '@infrastructure' db:migrate"
   }
 }
