@@ -1,6 +1,7 @@
 {
   "name": "@infrastructure",
   "type": "module",
+  "private": true,
   "exports": {
     ".": "./src/index.ts"
   },
@@ -8,9 +9,15 @@
     "@application": "workspace:*",
     "@domain": "workspace:*",
     "drizzle-orm": "0.45.0",
+    "@libsql/client": "0.15.15",
     "telegraf": "4.16.3"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.8"
+  },
+  "scripts": {
+    "db:push": "npx drizzle-kit push --config=src/db/config.db.ts",
+    "db:generate": "npx drizzle-kit generate --config=src/db/config.db.ts",
+    "db:migrate": "npx drizzle-kit migrate --config=src/db/config.db.ts"
   }
 }
