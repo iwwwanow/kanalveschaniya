@@ -1,5 +1,9 @@
 - ты ошибся в том, что в директории telegram-bot у тебя есть модуль domain. это в корне неверно. приложение твое - канал вещания. он не должен быть привязан к вендору
 
+- [ ] разбираюсь с drizzle. не запускается через bunjs. через npx вроде работает
+
+---
+
 - [ ] download adapter
 - cron on processors on adapters or infra?
 - repositories on infra
