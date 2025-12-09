@@ -17,13 +17,14 @@ export class QueueRepositoryImpl implements QueueRepository {
   }
 
   async add(task: QueueTask): Promise<void> {
-    await this.db
-      .insert(this.queueTasks)
-      .values({
-        id: task.taskId,
-        url: task.sourceUrl,
-        status: TaskStatusType.Pending,
-      });
+    await this.db.insert(this.queueTasks).values({
+      id: task.taskId.toString(),
+      url: task.sourceUrl.toString(),
+      status: task.status.getValue(),
+      priority: task.priority.getValue(),
+      createdAt: task.createdAt,
+      updatedAt: task.createdAt,
+    });
   }
 
   async remove(taskId: QueueTaskId): Promise<void> {

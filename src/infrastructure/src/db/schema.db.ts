@@ -5,7 +5,8 @@ export const queueTasks = sqliteTable('queue_tasks', {
   url: text('url').notNull().unique(),
   priority: integer('priority').default(0),
   status: text('status').notNull(),
-  created_at: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 
 export const resources = sqliteTable('resources', {
