@@ -47,9 +47,7 @@
       "indexes": {
         "queue_tasks_url_unique": {
           "name": "queue_tasks_url_unique",
-          "columns": [
-            "url"
-          ],
+          "columns": ["url"],
           "isUnique": true
         }
       },
@@ -100,9 +98,7 @@
       "indexes": {
         "resources_source_url_unique": {
           "name": "resources_source_url_unique",
-          "columns": [
-            "source_url"
-          ],
+          "columns": ["source_url"],
           "isUnique": true
         }
       },
