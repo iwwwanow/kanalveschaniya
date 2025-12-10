@@ -4,6 +4,7 @@ import { QueueTask } from '@domain';
 import { QueueTaskId } from '@domain';
 import { ResourceSourceUrl } from '@domain';
 import { QueueTaskStatus } from '@domain';
+import { eq } from 'drizzle-orm';
 
 export class QueueRepositoryImpl implements QueueRepository {
   db: QueueRepositoryProps['db'];
@@ -27,7 +28,9 @@ export class QueueRepositoryImpl implements QueueRepository {
   }
 
   async remove(taskId: QueueTaskId): Promise<void> {
-    // TODO
+    await this.db
+      .delete(this.queueTasks)
+      .where(eq(this.queueTasks.id, taskId.toString()));
   }
 
   async findFirstBySourceUrl(
