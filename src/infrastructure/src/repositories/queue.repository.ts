@@ -35,7 +35,18 @@ export class QueueRepositoryImpl implements QueueRepository {
 
   async findFirstBySourceUrl(
     taskUrl: ResourceSourceUrl,
-  ): Promise<Array<QueueTask> | null> {}
+  ): Promise<Array<QueueTask> | null> {
+    // const queueTask = await this.db.select({url: taskUrl.toString()}).from(this.queueTasks)
+    const results = await this.db
+      .select()
+      .from(this.queueTasks)
+      .where(eq(this.queueTasks.url, taskUrl.toString()))
+      .limit(1);
+
+    // TODO map to domain instance
+
+    return results[0];
+  }
 
   async findNextPending(): Promise<QueueTask | null> {
     // TODO
