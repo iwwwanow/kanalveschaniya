@@ -5,3 +5,4 @@
   - по ней и работай
   - d2 docs: https://d2lang.com/tour/containers/
   - d2 styles: https://d2lang.com/tour/icons/
+  - d2 sql styles: https://d2lang.com/tour/sql-tables/
