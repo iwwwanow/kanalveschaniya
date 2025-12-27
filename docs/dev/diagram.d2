@@ -1,0 +1,44 @@
+direction: down
+
+adapters: {
+  cobalt
+}
+
+src: {
+  entrypoints: {
+    cron
+    # TODO abstract it; make it port and make adapter
+    telegram-bot
+  }
+
+  app: {
+    process-download-use-case
+    downloader-port
+    schedule-download-use-case
+  }
+
+  storage: {
+    qeue-repository
+    resource-repository
+    # TODO need more drizzle or knex config & init details. implementation without abstraction
+    # schema
+  }
+
+  server
+}
+
+src.server -> src.entrypoints
+
+src.entrypoints.cron -> src.app.process-download-use-case
+src.app.process-download-use-case -> src.app.downloader-port
+
+src.entrypoints.telegram-bot -> src.app.schedule-download-use-case
+
+src.app.process-download-use-case -> src.storage.qeue-repository
+src.app.process-download-use-case -> src.storage.resource-repository
+
+src.app.schedule-download-use-case -> src.storage.qeue-repository
+src.app.schedule-download-use-case -> src.storage.resource-repository
+
+adapters.cobalt -> src.app.dto
+src.app.dto -> src.app.downloader-port
