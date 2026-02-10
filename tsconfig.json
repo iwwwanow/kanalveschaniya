@@ -1,6 +1,9 @@
 {
 	"compilerOptions": {
 		// Environment setup & latest features
+		"types": [
+			"node"
+		],
 		"lib": [
 			"ES2022",
 			"DOM",
