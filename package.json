@@ -5,14 +5,13 @@
   "private": true,
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "6.0.0",
+    "@types/node": "25.2.3",
     "prettier": "3.6.2",
+    "ts-node": "10.9.2",
     "typescript": "5.9.3"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "format": "prettier --write .",
-    "db:push": "TODO pnpm run --env-file=.env.dev --filter '@infrastructure' db:push",
-    "db:generate": "TODO pnpm run --env-file=.env.dev --filter '@infrastructure' db:generate",
-    "db:migrate": "TODO pnpm --env-file=.env.dev --filter '@infrastructure' db:migrate"
+    "dev": "ts-node src/server.ts",
+    "typecheck": "tsc --noEmit"
   }
 }
