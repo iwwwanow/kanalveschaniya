@@ -24,6 +24,9 @@ export class TelegramEntrypoint {
     this.bot.start((ctx) => ctx.reply('Welcome'));
 
     this.bot.on(message('text'), (ctx) => this.processMessage(ctx));
+
+    process.once('SIGINT', () => this.bot.stop('SIGINT'));
+    process.once('SIGTERM', () => this.bot.stop('SIGTERM'));
   }
 
   private async processMessage(ctx: Context) {
@@ -40,7 +43,6 @@ export class TelegramEntrypoint {
     const urls = [...text.matchAll(URL_REGEX)].map((match) => match[0]);
 
     if (urls.length === 0) {
-      // TODO: locales
       await ctx.reply(telegramLocales['not-found']);
       return;
     }
