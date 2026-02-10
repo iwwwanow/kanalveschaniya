@@ -1,4 +1,6 @@
 import { ScheduleDownloadUseCase } from '../app';
+import { URL_REGEX } from './telegram.constants';
+import * as telegramLocales from './telegram.locales.json';
 import { Context } from 'telegraf';
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
@@ -35,15 +37,11 @@ export class TelegramEntrypoint {
 
     const text = ctx.message.text;
 
-    // TODO: consts
-    const urlRegex =
-      /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/gi;
-
-    const urls = [...text.matchAll(urlRegex)].map((match) => match[0]);
+    const urls = [...text.matchAll(URL_REGEX)].map((match) => match[0]);
 
     if (urls.length === 0) {
       // TODO: locales
-      await ctx.reply('Не нашёл ссылок в вашем сообщении.');
+      await ctx.reply(telegramLocales['not-found']);
       return;
     }
 
@@ -57,20 +55,17 @@ export class TelegramEntrypoint {
     });
 
     if (validUrls.length === 0) {
-      // TODO: locales
-      await ctx.reply('Ни одна из найденных ссылок не является валидной.');
+      await ctx.reply(telegramLocales['not-any-valid']);
       return;
     }
 
     for (const url of validUrls) {
       try {
         await this.scheduleDownloadUseCase.execute(url);
-        // TODO: locales
-        await ctx.reply(`✅ Найдено и добавлено в очередь:\n${url}`);
+        await ctx.reply(`${telegramLocales['found-and-added']}:\n${url}`);
       } catch (error) {
         console.error(`Failed to schedule ${url}:`, error);
-        // TODO: locales
-        await ctx.reply(`❌ Не удалось добавить: ${url}`);
+        await ctx.reply(`${telegramLocales['adding-error']}: ${url}`);
       }
     }
   }
