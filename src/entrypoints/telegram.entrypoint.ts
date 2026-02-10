@@ -1,1 +1,5 @@
-export class TelegramEntrypoint {}
+export class TelegramEntrypoint {
+  start() {
+    console.log('telegram entrypoint startup');
+  }
+}
