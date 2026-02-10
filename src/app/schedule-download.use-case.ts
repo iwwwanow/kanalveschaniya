@@ -1,1 +1,7 @@
-export class ScheduleDownloadUseCase {}
+export class ScheduleDownloadUseCase {
+  constructor() {}
+
+  async execute(url: string) {
+    console.log(`execute ${url}`);
+  }
+}
