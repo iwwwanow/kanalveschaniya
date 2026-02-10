@@ -1,14 +1,20 @@
 import { ScheduleDownloadUseCase } from './app';
 import { TelegramEntrypoint } from './entrypoints';
+import { db } from './storage';
+import { QueueRepository } from './storage';
+import { ResourceRepository } from './storage';
 import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/libsql';
 
 const main = () => {
   console.log('server startup');
 
-  const db = drizzle(process.env.DB_FILE_NAME!);
+  const queueRepository = new QueueRepository(db);
+  const resourceRepository = new ResourceRepository(db);
 
-  const scheduleDownloadUseCase = new ScheduleDownloadUseCase();
+  const scheduleDownloadUseCase = new ScheduleDownloadUseCase(
+    queueRepository,
+    resourceRepository,
+  );
 
   const telegramEntrypoint = new TelegramEntrypoint(scheduleDownloadUseCase);
   telegramEntrypoint.start();
