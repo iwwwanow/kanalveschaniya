@@ -1,11 +1,6 @@
 // src/storage/db/schema.ts
 import { sql } from 'drizzle-orm';
-import {
-  sqliteTable,
-  integer,
-  text,
-  primaryKey,
-} from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
 
 export const resources = sqliteTable('resources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -28,3 +23,9 @@ export const queue = sqliteTable('queue', {
   ),
   processedAt: integer('processed_at', { mode: 'timestamp' }),
 });
+
+export type Resource = typeof resources.$inferSelect;
+export type NewResource = typeof resources.$inferInsert;
+
+export type Queue = typeof queue.$inferSelect;
+export type NewQueue = typeof queue.$inferInsert;

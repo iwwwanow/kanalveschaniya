@@ -1,5 +1,6 @@
 import type { DB } from './client';
 import { resources } from './schema';
+import type { Resource } from './schema';
 import { eq } from 'drizzle-orm';
 
 export class ResourceRepository {
@@ -9,7 +10,7 @@ export class ResourceRepository {
     this.db = db;
   }
 
-  async create(url: string): Promise<Resource> {
+  async create(url: string): Promise<Resource | undefined> {
     const [res] = await this.db.insert(resources).values({ url }).returning();
     return res;
   }
@@ -22,7 +23,7 @@ export class ResourceRepository {
     return res || null;
   }
 
-  async updateStatus(id: number, status: string): Promise<void> {
+  async updateStatus(id: number, status: Resource['status']): Promise<void> {
     await this.db
       .update(resources)
       .set({ status, dateUpdated: new Date() })
