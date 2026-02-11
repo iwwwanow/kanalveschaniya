@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: download-bot
+    restart: unless-stopped
+    depends_on:
+      - cobalt
+      - gost
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - COBALT_URL=http://cobalt:9000/api/json
+      - DB_FILE_NAME=/app/data/db.sqlite
+    volumes:
+      - ./data:/app/data
+    networks:
+      - download-net
+
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:11
+    container_name: cobalt
+    init: true
+    read_only: true
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      API_URL: 'http://cobalt:9000/'
+      HTTP_PROXY: 'http://gost:8080'
+      HTTPS_PROXY: 'http://gost:8080'
+    networks:
+      - download-net
+
+  gost:
+    image: ginuerzh/gost:latest
+    container_name: gost
+    command: -L :8080
+    restart: unless-stopped
+    networks:
+      - download-net
+
+networks:
+  download-net:
+    driver: bridge
