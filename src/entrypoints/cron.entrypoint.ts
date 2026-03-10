@@ -5,7 +5,8 @@ export class CronEntrypoint {
   constructor(private processDownloadUseCase: ProcessDownloadUseCase) {}
 
   start() {
-    const cronJob = cron.schedule('*/5 * * * *', async () => {
+    // TODO: const/config
+    const cronJob = cron.schedule('* * * * * *', async () => {
       console.log('[Cron] Triggering queue processing...');
       await this.processDownloadUseCase.execute(10);
     });
