@@ -10,12 +10,18 @@ Telegram bot for scheduling and processing media downloads via the Cobalt servic
 
 ```bash
 pnpm dev          # Start dev server with hot-reload (nodemon + tsx)
+pnpm build        # Bundle with esbuild → dist/server.js
+pnpm start        # Run production build (node dist/server.js)
 pnpm typecheck    # TypeScript type checking (tsc --noEmit)
 pnpm db:generate  # Generate Drizzle ORM migrations
 pnpm db:migrate   # Run database migrations
 ```
 
 No test or lint scripts are configured yet.
+
+## Build
+
+Uses **esbuild** (`--bundle --packages=external`) to compile `src/server.ts` → `dist/server.js`. All node_modules stay external (not bundled). `tsconfig.json` is bundler-mode only for type checking (`noEmit: true`) — esbuild handles the actual emit.
 
 ## Architecture
 
