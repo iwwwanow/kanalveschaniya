@@ -1,5 +1,7 @@
 # kanalveshchaniya
 
+![logo](assets/logo/renders/logo.png)
+
 Telegram-бот для скачивания музыки и видео через yt-dlp с кэшированием через приватный Telegram-канал.
 
 ## Как работает
