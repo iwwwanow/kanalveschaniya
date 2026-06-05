@@ -4,7 +4,6 @@
 
 ## Backlog
 
-- [ ] Подробный логгинг — timestamp, уровни (info/warn/error), контекст (job id, user id, url)
 
 ## Готово
 
@@ -21,3 +20,7 @@
 - [x] Retry до 3 раз при ошибке
 - [x] Фикс: SQLite wrong param count при разворачивании плейлиста
 - [x] Фикс: url undefined для entries в flat-playlist
+- [x] Подробный логгинг (timestamp, уровни, job id, user id)
+- [x] Параллельный пул воркеров (WORKER_CONCURRENCY, default 3)
+- [x] Классификация ошибок: 404 → failed сразу, geo → geo_blocked статус
+- [x] geo_blocked авто-реqueue при старте если PROXY задан

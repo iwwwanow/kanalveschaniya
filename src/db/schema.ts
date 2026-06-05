@@ -13,7 +13,7 @@ export function initSchema() {
       url        TEXT NOT NULL,
       track_id   TEXT,
       user_id    INTEGER NOT NULL,
-      status     TEXT DEFAULT 'pending',
+      status     TEXT DEFAULT 'pending', -- pending | processing | done | failed | geo_blocked
       retries    INTEGER DEFAULT 0,
       error      TEXT,
       created_at INTEGER DEFAULT (unixepoch())

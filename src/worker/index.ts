@@ -1,8 +1,13 @@
 import { db } from "../db";
 import { config } from "../config";
 import { getInfo, download } from "./downloader";
+import { logger } from "../logger";
 import type { Telegraf } from "telegraf";
 import { unlink } from "fs/promises";
+
+type WorkerLog = ReturnType<typeof logger.worker>;
+
+const MAX_RETRIES = 3;
 
 interface QueueRow {
   id: number;
@@ -16,79 +21,137 @@ interface TrackRow {
   channel_message_id: number;
 }
 
-const MAX_RETRIES = 3;
+function isNotFound(error: string): boolean {
+  return error.includes("HTTP Error 404");
+}
 
-export function startWorker(bot: Telegraf) {
-  const tick = async () => {
-    const job = db
-      .query<QueueRow, []>(
-        `SELECT id, url, track_id, user_id, retries
-         FROM queue
-         WHERE status = 'pending'
-         ORDER BY id ASC
-         LIMIT 1`
-      )
-      .get();
+function isGeoBlocked(error: string): boolean {
+  return (
+    error.includes("geo restriction") ||
+    error.includes("not available in your country") ||
+    error.includes("not available from your location")
+  );
+}
 
-    if (!job) return;
+function claimNextJob(): QueueRow | null {
+  const job = db
+    .query<QueueRow, []>(
+      `SELECT id, url, track_id, user_id, retries
+       FROM queue
+       WHERE status = 'pending'
+       ORDER BY id ASC
+       LIMIT 1`
+    )
+    .get();
 
-    db.run(`UPDATE queue SET status = 'processing' WHERE id = ?`, [job.id]);
+  if (!job) return null;
+
+  db.run(`UPDATE queue SET status = 'processing' WHERE id = ?`, [job.id]);
+  return job;
+}
+
+async function runWorker(bot: Telegraf, workerId: number) {
+  const log = logger.worker(workerId);
+  log.info("started");
+
+  while (true) {
+    const job = claimNextJob();
+
+    if (!job) {
+      await Bun.sleep(config.workerIntervalMs);
+      continue;
+    }
+
+    log.info(`job ${job.id} | ${job.url}`);
 
     try {
-      await processJob(bot, job);
+      await processJob(bot, job, log);
       db.run(`UPDATE queue SET status = 'done' WHERE id = ?`, [job.id]);
+      log.info(`job ${job.id} | done`);
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
-      console.error(`[worker] job ${job.id} failed:`, error);
+      const geo = isGeoBlocked(error);
+      const notFound = isNotFound(error);
+      const exhausted = job.retries + 1 >= MAX_RETRIES;
 
-      if (job.retries + 1 >= MAX_RETRIES) {
-        db.run(`UPDATE queue SET status = 'failed', error = ? WHERE id = ?`, [
-          error,
-          job.id,
-        ]);
+      log.error(`job ${job.id} | attempt ${job.retries + 1}/${MAX_RETRIES} | geo=${geo} notFound=${notFound} | ${error.split("\n")[0]}`);
+
+      if (geo) {
+        db.run(`UPDATE queue SET status = 'geo_blocked', error = ? WHERE id = ?`, [error, job.id]);
+        log.warn(`job ${job.id} | geo_blocked — сохранён для повтора при наличии прокси`);
         try {
           await bot.telegram.sendMessage(
             job.user_id,
-            `Не удалось загрузить: ${job.url}\n\n${error.slice(0, 200)}`
+            `Трек недоступен из-за гео-ограничения: ${job.url}\nБудет загружен автоматически при настройке прокси`
           );
         } catch {}
+      } else if (notFound || exhausted) {
+        db.run(`UPDATE queue SET status = 'failed', error = ? WHERE id = ?`, [error, job.id]);
+        try {
+          const reason = notFound ? "трек не найден (404)" : "превышено число попыток";
+          await bot.telegram.sendMessage(
+            job.user_id,
+            `Не удалось загрузить: ${job.url}\nПричина: ${reason}`
+          );
+        } catch (notifyErr) {
+          log.warn(`failed to notify user ${job.user_id}:`, notifyErr);
+        }
       } else {
         db.run(
           `UPDATE queue SET status = 'pending', retries = retries + 1, error = ? WHERE id = ?`,
           [error, job.id]
         );
+        log.info(`job ${job.id} | requeued for retry`);
       }
     }
-  };
-
-  setInterval(tick, config.workerIntervalMs);
-  console.log("[worker] started");
+  }
 }
 
-async function processJob(bot: Telegraf, job: QueueRow) {
-  // Playlist — expand into individual track jobs
+export function startWorker(bot: Telegraf) {
+  requeueGeoBlocked();
+
+  for (let i = 1; i <= config.workerConcurrency; i++) {
+    runWorker(bot, i);
+  }
+  logger.info(`${config.workerConcurrency} workers started`);
+}
+
+function requeueGeoBlocked() {
+  if (!config.proxy) return;
+
+  const result = db.run(
+    `UPDATE queue SET status = 'pending', retries = 0, error = NULL
+     WHERE status = 'geo_blocked'`
+  );
+
+  if (result.changes > 0) {
+    logger.info(`requeued ${result.changes} geo_blocked jobs (proxy is set)`);
+  }
+}
+
+async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
   if (!job.track_id) {
     const info = await getInfo(job.url);
 
     if (info.entries && info.entries.length > 0) {
+      log.info(`job ${job.id} | playlist "${info.title}" | ${info.entries.length} entries`);
+
+      let cached = 0;
+      let queued = 0;
+
       for (const entry of info.entries) {
-        // Check cache first
-        const cached = db
+        const cachedTrack = db
           .query<TrackRow, [string]>(
             `SELECT channel_message_id FROM tracks WHERE track_id = ?`
           )
           .get(entry.id);
 
-        if (cached) {
-          await bot.telegram.forwardMessage(
-            job.user_id,
-            config.channelId,
-            cached.channel_message_id
-          );
+        if (cachedTrack) {
+          await bot.telegram.forwardMessage(job.user_id, config.channelId, cachedTrack.channel_message_id);
+          cached++;
           continue;
         }
 
-        // Check if already queued
         const existing = db
           .query<{ id: number }, [string]>(
             `SELECT id FROM queue WHERE track_id = ? AND status IN ('pending','processing')`
@@ -96,96 +159,71 @@ async function processJob(bot: Telegraf, job: QueueRow) {
           .get(entry.id);
 
         if (!existing) {
-          db.run(
-            `INSERT INTO queue (url, track_id, user_id) VALUES (?, ?, ?)`,
-            [entry.url, entry.id, job.user_id]
-          );
+          db.run(`INSERT INTO queue (url, track_id, user_id) VALUES (?, ?, ?)`, [entry.url, entry.id, job.user_id]);
+          queued++;
         }
       }
 
+      log.info(`job ${job.id} | playlist done | cached=${cached} queued=${queued}`);
       await bot.telegram.sendMessage(
         job.user_id,
-        `Плейлист "${info.title}": ${info.entries.length} треков добавлено в очередь`
+        `Плейлист "${info.title}": ${queued} в очереди, ${cached} уже в кэше`
       );
       return;
     }
 
-    // Single track — reprocess with track_id filled
     job.track_id = info.id;
     job.url = info.url;
   }
 
-  // Single track
-  const cached = db
+  const cachedTrack = db
     .query<TrackRow, [string]>(
       `SELECT channel_message_id FROM tracks WHERE track_id = ?`
     )
     .get(job.track_id);
 
-  if (cached) {
-    await bot.telegram.forwardMessage(
-      job.user_id,
-      config.channelId,
-      cached.channel_message_id
-    );
+  if (cachedTrack) {
+    log.info(`job ${job.id} | cache hit | track_id=${job.track_id}`);
+    await bot.telegram.forwardMessage(job.user_id, config.channelId, cachedTrack.channel_message_id);
     return;
   }
 
-  // Download
+  log.info(`job ${job.id} | downloading | ${job.url}`);
   const result = await download(job.url);
+  log.info(`job ${job.id} | downloaded | ${result.title} | ${(result.fileSize / 1024 / 1024).toFixed(1)}MB`);
 
   if (result.fileSize > config.maxFileSizeBytes) {
     await unlink(result.filePath).catch(() => {});
-    await bot.telegram.sendMessage(
-      job.user_id,
-      `Трек "${result.title}" превышает лимит 50MB и был пропущен`
-    );
+    log.warn(`job ${job.id} | skipped — exceeds 50MB | ${result.title}`);
+    await bot.telegram.sendMessage(job.user_id, `Трек "${result.title}" превышает лимит 50MB и был пропущен`);
     return;
   }
 
-  // Upload to channel
+  log.info(`job ${job.id} | uploading to channel`);
   let channelMessageId: number;
 
   if (result.isVideo) {
-    const msg = await bot.telegram.sendVideo(config.channelId, {
-      source: result.filePath,
-    }, {
-      caption: result.title,
-      duration: result.duration,
-    });
+    const msg = await bot.telegram.sendVideo(
+      config.channelId,
+      { source: result.filePath },
+      { caption: result.title, duration: result.duration }
+    );
     channelMessageId = msg.message_id;
   } else {
-    const msg = await bot.telegram.sendAudio(config.channelId, {
-      source: result.filePath,
-    }, {
-      caption: result.title,
-      duration: result.duration,
-      title: result.title,
-    });
+    const msg = await bot.telegram.sendAudio(
+      config.channelId,
+      { source: result.filePath },
+      { caption: result.title, duration: result.duration, title: result.title }
+    );
     channelMessageId = msg.message_id;
   }
 
-  // Save to cache
   db.run(
-    `INSERT INTO tracks (track_id, url, channel_message_id, title, duration, is_video)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      job.track_id,
-      job.url,
-      channelMessageId,
-      result.title,
-      result.duration ?? null,
-      result.isVideo ? 1 : 0,
-    ]
+    `INSERT INTO tracks (track_id, url, channel_message_id, title, duration, is_video) VALUES (?, ?, ?, ?, ?, ?)`,
+    [job.track_id, job.url, channelMessageId, result.title, result.duration ?? null, result.isVideo ? 1 : 0]
   );
 
-  // Forward to user
-  await bot.telegram.forwardMessage(
-    job.user_id,
-    config.channelId,
-    channelMessageId
-  );
-
-  // Cleanup
+  await bot.telegram.forwardMessage(job.user_id, config.channelId, channelMessageId);
   await unlink(result.filePath).catch(() => {});
+  log.info(`job ${job.id} | forwarded to user ${job.user_id}`);
 }
