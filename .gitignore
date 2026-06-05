@@ -1,1 +1,9 @@
 content/
+data/
+.env
+node_modules/
+.bun/
+/tmp/ytdlp/
+*.db
+*.db-shm
+*.db-wal
