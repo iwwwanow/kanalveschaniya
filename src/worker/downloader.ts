@@ -16,7 +16,8 @@ export interface TrackInfo {
 interface YtDlpMeta {
   id: string;
   title: string;
-  webpage_url: string;
+  webpage_url?: string;
+  url?: string;
   duration?: number;
   vcodec?: string;
   entries?: YtDlpMeta[];
@@ -50,7 +51,7 @@ function parseMeta(raw: YtDlpMeta): TrackInfo {
   return {
     id: raw.id,
     title: raw.title,
-    url: raw.webpage_url,
+    url: raw.webpage_url ?? raw.url ?? "",
     duration: raw.duration,
     isVideo,
     entries: isPlaylist ? raw.entries!.map(parseMeta) : undefined,

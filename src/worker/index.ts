@@ -90,10 +90,10 @@ async function processJob(bot: Telegraf, job: QueueRow) {
 
         // Check if already queued
         const existing = db
-          .query<{ id: number }, [string, string]>(
+          .query<{ id: number }, [string]>(
             `SELECT id FROM queue WHERE track_id = ? AND status IN ('pending','processing')`
           )
-          .get(entry.id, "");
+          .get(entry.id);
 
         if (!existing) {
           db.run(
