@@ -6,6 +6,7 @@ RUN bun install --frozen-lockfile --production
 FROM oven/bun:1 AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     ffmpeg \
     curl \
     python3 \
@@ -22,6 +23,6 @@ COPY tsconfig.json ./
 ENV NODE_ENV=production
 ENV TZ=Europe/Moscow
 
-VOLUME ["/app/data", "/tmp/ytdlp"]
+VOLUME ["/app/data", "/app/content", "/tmp/ytdlp"]
 
 CMD ["bun", "run", "src/main.ts"]

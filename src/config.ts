@@ -9,6 +9,7 @@ export const config = {
   channelId: required("CHANNEL_ID"),
   proxy: process.env.PROXY,
   tmpDir: process.env.TMP_DIR ?? "/tmp/ytdlp",
+  contentDir: process.env.CONTENT_DIR ?? "./content",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY ?? 3),
   workerIntervalMs: 5_000,
   maxFileSizeBytes: 50 * 1024 * 1024, // 50MB Telegram limit

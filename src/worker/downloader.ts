@@ -20,6 +20,7 @@ interface YtDlpMeta {
   url?: string;
   duration?: number;
   vcodec?: string;
+  extractor?: string;
   entries?: YtDlpMeta[];
   _type?: string;
 }
@@ -70,6 +71,7 @@ export interface DownloadResult {
   duration?: number;
   isVideo: boolean;
   fileSize: number;
+  extractor: string;
 }
 
 export async function download(url: string): Promise<DownloadResult> {
@@ -111,5 +113,6 @@ export async function download(url: string): Promise<DownloadResult> {
     duration: meta.duration,
     isVideo,
     fileSize,
+    extractor: meta.extractor ?? "other",
   };
 }

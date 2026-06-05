@@ -90,6 +90,7 @@ Tables: `users`, `queue`, `tracks`, `error_log`, `migrations`
 | `CHANNEL_ID` | yes | Private channel ID (e.g. `-1001234567890`) |
 | `PROXY` | no | socks5 proxy (e.g. `socks5://localhost:9090`) |
 | `WORKER_CONCURRENCY` | no | Number of parallel workers (default 3) |
+| `CONTENT_DIR` | no | Directory for permanent mp3/mp4 storage (default `./content`) |
 | `TMP_DIR` | no | Temp dir for downloads (default `/tmp/ytdlp`) |
 
 ## CI/CD

@@ -3,7 +3,8 @@ import { config } from "../config";
 import { getInfo, download } from "./downloader";
 import { logger } from "../logger";
 import type { Telegraf } from "telegraf";
-import { unlink } from "fs/promises";
+import { unlink, rename, mkdir } from "fs/promises";
+import { basename, join } from "path";
 
 type WorkerLog = ReturnType<typeof logger.worker>;
 
@@ -245,6 +246,20 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
   );
 
   await bot.telegram.forwardMessage(job.user_id, config.channelId, channelMessageId);
-  await unlink(result.filePath).catch(() => {});
+  await saveToContent(result.filePath, result.isVideo, log);
   log.info(`job ${job.id} | forwarded to user ${job.user_id}`);
+}
+
+async function saveToContent(filePath: string, isVideo: boolean, log: WorkerLog) {
+  try {
+    const subdir = isVideo ? "mp4" : "mp3";
+    const destDir = join(config.contentDir, subdir);
+    await mkdir(destDir, { recursive: true });
+    const dest = join(destDir, basename(filePath));
+    await rename(filePath, dest);
+    log.info(`saved to content | ${dest}`);
+  } catch (err) {
+    log.warn(`failed to save to content dir, deleting instead:`, err);
+    await unlink(filePath).catch(() => {});
+  }
 }
