@@ -39,6 +39,7 @@ function claimNextJob(): QueueRow | null {
       `SELECT id, url, track_id, user_id, retries
        FROM queue
        WHERE status = 'pending'
+         AND (retry_after IS NULL OR retry_after <= unixepoch())
        ORDER BY id ASC
        LIMIT 1`
     )
@@ -54,6 +55,17 @@ async function runWorker(bot: Telegraf, workerId: number) {
   const log = logger.worker(workerId);
   log.info("started");
 
+  while (true) {
+    try {
+      await workerLoop(bot, workerId, log);
+    } catch (err) {
+      log.error("unexpected crash, restarting in 5s:", err);
+      await Bun.sleep(5_000);
+    }
+  }
+}
+
+async function workerLoop(bot: Telegraf, workerId: number, log: WorkerLog) {
   while (true) {
     const job = claimNextJob();
 
@@ -76,6 +88,12 @@ async function runWorker(bot: Telegraf, workerId: number) {
 
       log.error(`job ${job.id} | attempt ${job.retries + 1}/${MAX_RETRIES} | geo=${geo} notFound=${notFound} | ${error.split("\n")[0]}`);
 
+      // Always log to error history
+      db.run(
+        `INSERT INTO error_log (job_id, url, error) VALUES (?, ?, ?)`,
+        [job.id, job.url, error]
+      );
+
       if (geo) {
         db.run(`UPDATE queue SET status = 'geo_blocked', error = ? WHERE id = ?`, [error, job.id]);
         log.warn(`job ${job.id} | geo_blocked — сохранён для повтора при наличии прокси`);
@@ -97,11 +115,14 @@ async function runWorker(bot: Telegraf, workerId: number) {
           log.warn(`failed to notify user ${job.user_id}:`, notifyErr);
         }
       } else {
+        // Exponential backoff: wait before requeuing (30s, 60s, 120s)
+        const delayMs = 30_000 * Math.pow(2, job.retries);
+        const retryAt = Math.floor(Date.now() / 1000) + delayMs / 1000;
         db.run(
-          `UPDATE queue SET status = 'pending', retries = retries + 1, error = ? WHERE id = ?`,
-          [error, job.id]
+          `UPDATE queue SET status = 'pending', retries = retries + 1, error = ?, retry_after = ? WHERE id = ?`,
+          [error, retryAt, job.id]
         );
-        log.info(`job ${job.id} | requeued for retry`);
+        log.info(`job ${job.id} | requeued for retry in ${delayMs / 1000}s`);
       }
     }
   }
