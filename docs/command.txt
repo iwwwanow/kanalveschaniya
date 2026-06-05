@@ -1,0 +1,3 @@
+yt-dlp --proxy socks5://localhost:9090 --cookies cookies.txt --hls-prefer-native --download-archive archive.txt --no-overwrites --continue --sleep-interval 5 --max-sleep-interval 10 "https://soundcloud.com/iwwwanowwwwwww/likes"
+
+for f in *.aac; do ffmpeg -n -i "$f" -q:a 2 -map a "${f%.aac}.mp3"; done
