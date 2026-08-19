@@ -91,6 +91,8 @@ Tables: `users`, `queue`, `tracks`, `error_log`, `migrations`
 | `PROXY` | no | socks5 proxy (e.g. `socks5://localhost:9090`) |
 | `WORKER_CONCURRENCY` | no | Number of parallel workers (default 3) |
 | `CONTENT_DIR` | no | Directory for permanent mp3/mp4 storage (default `./content`) |
+| `CACHE_TO_CHANNEL` | no | Upload/cache tracks in the private channel (default `true`; `false` sends directly to the user, no dedup) |
+| `SAVE_TO_CONTENT_DIR` | no | Save a permanent local copy to `CONTENT_DIR` (default `true`; `false` deletes the temp file after sending) |
 | `TMP_DIR` | no | Temp dir for downloads (default `/tmp/ytdlp`) |
 
 ## CI/CD
