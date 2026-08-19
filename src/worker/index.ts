@@ -221,33 +221,56 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
     return;
   }
 
-  log.info(`job ${job.id} | uploading to channel`);
-  let channelMessageId: number;
+  if (config.cacheToChannel) {
+    log.info(`job ${job.id} | uploading to channel`);
+    let channelMessageId: number;
 
-  if (result.isVideo) {
-    const msg = await bot.telegram.sendVideo(
-      config.channelId,
-      { source: result.filePath },
-      { caption: result.title, duration: result.duration }
+    if (result.isVideo) {
+      const msg = await bot.telegram.sendVideo(
+        config.channelId,
+        { source: result.filePath },
+        { caption: result.title, duration: result.duration }
+      );
+      channelMessageId = msg.message_id;
+    } else {
+      const msg = await bot.telegram.sendAudio(
+        config.channelId,
+        { source: result.filePath },
+        { caption: result.title, duration: result.duration, title: result.title }
+      );
+      channelMessageId = msg.message_id;
+    }
+
+    db.run(
+      `INSERT INTO tracks (track_id, url, channel_message_id, title, duration, is_video) VALUES (?, ?, ?, ?, ?, ?)`,
+      [job.track_id, job.url, channelMessageId, result.title, result.duration ?? null, result.isVideo ? 1 : 0]
     );
-    channelMessageId = msg.message_id;
+
+    await bot.telegram.forwardMessage(job.user_id, config.channelId, channelMessageId);
+    log.info(`job ${job.id} | forwarded to user ${job.user_id}`);
   } else {
-    const msg = await bot.telegram.sendAudio(
-      config.channelId,
-      { source: result.filePath },
-      { caption: result.title, duration: result.duration, title: result.title }
-    );
-    channelMessageId = msg.message_id;
+    log.info(`job ${job.id} | sending directly to user (channel caching disabled)`);
+
+    if (result.isVideo) {
+      await bot.telegram.sendVideo(
+        job.user_id,
+        { source: result.filePath },
+        { caption: result.title, duration: result.duration }
+      );
+    } else {
+      await bot.telegram.sendAudio(
+        job.user_id,
+        { source: result.filePath },
+        { caption: result.title, duration: result.duration, title: result.title }
+      );
+    }
   }
 
-  db.run(
-    `INSERT INTO tracks (track_id, url, channel_message_id, title, duration, is_video) VALUES (?, ?, ?, ?, ?, ?)`,
-    [job.track_id, job.url, channelMessageId, result.title, result.duration ?? null, result.isVideo ? 1 : 0]
-  );
-
-  await bot.telegram.forwardMessage(job.user_id, config.channelId, channelMessageId);
-  await saveToContent(result.filePath, result.isVideo, log);
-  log.info(`job ${job.id} | forwarded to user ${job.user_id}`);
+  if (config.saveToContentDir) {
+    await saveToContent(result.filePath, result.isVideo, log);
+  } else {
+    await unlink(result.filePath).catch(() => {});
+  }
 }
 
 async function saveToContent(filePath: string, isVideo: boolean, log: WorkerLog) {

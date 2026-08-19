@@ -1,6 +1,7 @@
 content/
 data/
 .env
+.env.local
 node_modules/
 .bun/
 /tmp/ytdlp/
