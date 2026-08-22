@@ -189,7 +189,19 @@ yt-dlp \
 - Лимит Telegram 50MB — треки превышающие лимит пропускаются, пользователь получает уведомление с названием трека
 - Telegram sendAudio / sendVideo — используем для встроенного плеера в чате
 
+## Рефакторинг архитектуры (clean: domain / application / infra)
+
+- [x] Границы слоёв согласованы, финальная схема — `docs/diagram.d2`
+      (infrastructure → application → domain: presentation/telegram-bot,
+      adapters/yt-dlp, repository/{telegram,sqlite}, workers/queue-poller;
+      use-cases enqueue-download + process-download; domain interfaces/ports/repository)
+- [ ] Сам рефакторинг каталогов под `domain/application/infra` — не начат.
+      Подробности решений — `docs/diary/2026-08-22_clean-architecture-refactor.md`
+- [x] GitHub Actions работоспособны — токен `gh` был протух под неверным аккаунтом
+      (`kirill-ivanovvv` вместо `iwwwanow`), починили через `gh auth login`.
+      Последний прогон (коммит `3a52e73`) — success. Подробности там же
+
 ## Хостинг / инфраструктура
 
-- [ ] Перенести бота на домашний Raspberry Pi 3B+ + k3s (учебная цель заодно). DietPi прошита и поднята (`192.168.0.118`, hostname `DietPi`, SSH по ключу). Обе флешки размечены и смонтированы: `/mnt/apps` (29GB, ext4, под k3s `--data-dir`), `/mnt/storage` (7.6GB, ext4, под медиа/downloads бота). Новый БП (5V/2.4A) подключён 2026-08-21 — проверено под нагрузкой (параллельная запись 500MB на обе флешки + CPU ~75 сек): `vcgencmd get_throttled` стабильно `0x80000` (только исторический флаг soft temp limit, без undervoltage), voltage 1.28V, ни одного отвала устройств. **Блокер по питанию снят.** Подключение упрощено — `ssh pi` (mDNS-алиас `DietPi.local` в `~/.ssh/config.d/personal.conf`, переживает смену IP по DHCP; `avahi-daemon` доставлен на Pi). Инструменты выбраны: **k3s** (не microk8s — snap лишний на DietPi), **Flux** (не ArgoCD — легче по ресурсам). Осталось: сам k3s (`INSTALL_K3S_EXEC="--data-dir=/mnt/apps"`), деплой бота (образ уже в `ghcr.io/iwwwanow/iwwwanow_kanalveshchaniya`, arm64). Подробности, история дебага обнаружения Pi в сети, разбор бюджета питания — `docs/diary/2026-08-19_raspberry-pi-hosting.md`
+- [ ] Перенести бота на домашний Raspberry Pi 3B+ + k3s (учебная цель заодно). **k3s и Flux подняты и стабильны** (нода `dietpi` Ready, все 4 контроллера Flux Running, zram подключён под нехватку RAM). **GitOps-манифесты и вся дальнейшая работа по кластеру — в отдельном репозитории `infrastructure_pi`** (`git@github.com:iwwwanow/infrastructure_pi.git`), не здесь — см. его собственный дневник `infrastructure_pi/docs/diary/2026-08-21_pi-k3s-flux-setup.md` за подробностями (cgroup-фикс, медленная flash, память/zram) и остатком работы (git-секрет, GitRepository/Kustomization, манифест бота, SOPS, image-automation-controller). Заказана SD-карта побольше (64GB A1) на замену текущей маленькой boot-карты. Подключение — `ssh pi` (mDNS-алиас, `~/.ssh/config.d/personal.conf`). Подробности по железу/сети (питание, разметка флешек, Wi-Fi) — `docs/diary/2026-08-19_raspberry-pi-hosting.md` в этом репозитории.
 - [x] `CACHE_TO_CHANNEL` / `SAVE_TO_CONTENT_DIR` — независимая опциональность обоих способов сохранения медиа, с валидацией «хотя бы один обязателен» — см. дневник выше
