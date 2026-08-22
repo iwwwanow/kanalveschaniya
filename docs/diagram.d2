@@ -1,0 +1,40 @@
+infrastructure -> application -> domain
+
+infrastructure: {
+  presentation: {
+    telegram-bot
+  }
+  adapters: {
+    yt-dlp
+  }
+  repository: {
+    telegram
+    sqlite
+  }
+  workers: {
+    queue-poller
+  }
+}
+
+application: {
+  use-cases: {
+    enqueue-download
+    process-download
+  }
+}
+
+domain: {
+  interfaces: {
+    download-result
+    queue-item
+    resource
+  }
+  ports: {
+    downloader
+    notifier
+  }
+  repository: {
+    queue
+    resource
+  }
+}
