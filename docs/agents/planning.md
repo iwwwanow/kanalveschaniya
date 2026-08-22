@@ -195,8 +195,12 @@ yt-dlp \
       (infrastructure → application → domain: presentation/telegram-bot,
       adapters/yt-dlp, repository/{telegram,sqlite}, workers/queue-poller;
       use-cases enqueue-download + process-download; domain interfaces/ports/repository)
+- [x] Список хендлеров бота согласован — `docs/telegram-bot-spec.md`
+      (handle-message, listen-channel, handle-channel-history как заглушка —
+      Bot API не даёт истории канала, нужен MTProto для полной реализации)
 - [ ] Сам рефакторинг каталогов под `domain/application/infra` — не начат.
       Подробности решений — `docs/diary/2026-08-22_clean-architecture-refactor.md`
+- [ ] Реализация хендлеров бота по `docs/telegram-bot-spec.md` — не начата
 - [x] GitHub Actions работоспособны — токен `gh` был протух под неверным аккаунтом
       (`kirill-ivanovvv` вместо `iwwwanow`), починили через `gh auth login`.
       Последний прогон (коммит `3a52e73`) — success. Подробности там же
