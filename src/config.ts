@@ -20,3 +20,10 @@ export const config = {
 if (!config.cacheToChannel && !config.saveToContentDir) {
   throw new Error("At least one of CACHE_TO_CHANNEL or SAVE_TO_CONTENT_DIR must be true — media has to be stored somewhere");
 }
+
+// Bun's native fetch ignores Node-style http.Agent (e.g. from https-proxy-agent);
+// it routes through a proxy only via these env vars.
+if (config.proxy) {
+  process.env.HTTPS_PROXY ??= config.proxy;
+  process.env.HTTP_PROXY ??= config.proxy;
+}
