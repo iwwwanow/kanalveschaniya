@@ -1,9 +1,9 @@
-FROM oven/bun:1 AS deps
+FROM oven/bun:1.3 AS deps
 WORKDIR /app
 COPY package.json bun.lockb* ./
 RUN bun install --frozen-lockfile --production
 
-FROM oven/bun:1 AS runtime
+FROM oven/bun:1.3 AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
