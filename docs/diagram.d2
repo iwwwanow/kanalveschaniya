@@ -1,4 +1,7 @@
-infrastructure -> application -> domain
+application -> domain
+infrastructure.presentation -> application
+infrastructure.repository -> domain
+infrastructure.adapters -> domain
 
 infrastructure: {
   presentation: {
@@ -6,10 +9,20 @@ infrastructure: {
   }
   adapters: {
     yt-dlp
+    channel-cache
   }
   repository: {
-    telegram
-    sqlite
+    sqlite: {
+      label: "sqlite (data/app.db)"
+      queue
+      resource
+    }
+    telegram: {
+      label: "telegram (data/telegram.db)"
+      telegram_reply_refs
+      telegram_track_refs
+      telegram_send_queue
+    }
   }
   workers: {
     queue-poller
@@ -32,6 +45,7 @@ domain: {
   ports: {
     downloader
     notifier
+    track-cache
   }
   repository: {
     queue

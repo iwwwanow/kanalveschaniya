@@ -189,18 +189,41 @@ yt-dlp \
 - Лимит Telegram 50MB — треки превышающие лимит пропускаются, пользователь получает уведомление с названием трека
 - Telegram sendAudio / sendVideo — используем для встроенного плеера в чате
 
+## Бэклог: фичи
+
+- [ ] **Cookies для yt-dlp (SoundCloud-авторизация)** — часть треков не скачивается
+      без залогиненной сессии (запрос format info возвращает "not found" целиком,
+      не превью; подтверждено yt-dlp issue #8390). Сложная фича (код + k8s Secret +
+      операционный ре-экспорт) — подробности, архитектура (`CookieRepository`,
+      `DownloaderPort` с опциональными куки) и открытый вопрос про удобный экспорт
+      с телефона — `docs/backlog-cookies.md`. Пока не зафиксировано в
+      `docs/diagram.d2`/`docs/specs/types.md`.
+
+- [ ] **Форвардить в канал изначальное сообщение вместе с треком**
+      Сейчас при кэшировании в канал уходит только сам трек (аудио/видео из yt-dlp).
+      Нужно вместе с ним форвардить (`ctx.telegram.forwardMessage`) и исходное
+      сообщение пользователя, из которого была взята ссылка на скачивание —
+      чтобы в канале сохранялся контекст («откуда» трек), а не только файл.
+      Технически возможность подтверждена: Bot API `forwardMessage` умеет
+      форвардить из личного чата с ботом в канал напрямую, без ограничений
+      (кроме `protect_content` на исходном сообщении, что для личных чатов
+      с ботом маловероятно).
+
 ## Рефакторинг архитектуры (clean: domain / application / infra)
 
 - [x] Границы слоёв согласованы, финальная схема — `docs/diagram.d2`
       (infrastructure → application → domain: presentation/telegram-bot,
       adapters/yt-dlp, repository/{telegram,sqlite}, workers/queue-poller;
       use-cases enqueue-download + process-download; domain interfaces/ports/repository)
-- [x] Список хендлеров бота согласован — `docs/telegram-bot-spec.md`
+- [x] Список хендлеров бота согласован — `docs/specs/telegram-bot.md`
       (handle-message, listen-channel, handle-channel-history как заглушка —
       Bot API не даёт истории канала, нужен MTProto для полной реализации)
+- [x] Типы (`domain`/`infra/telegram`) прописаны черновиком — `docs/specs/types.md`
+      (Track, QueueItem, DownloadResult, порты, TelegramReplyRef, TelegramSendQueueItem)
 - [ ] Сам рефакторинг каталогов под `domain/application/infra` — не начат.
-      Подробности решений — `docs/diary/2026-08-22_clean-architecture-refactor.md`
-- [ ] Реализация хендлеров бота по `docs/telegram-bot-spec.md` — не начата
+      Подробности решений — `docs/diary/2026-08-22_clean-architecture-refactor.md`,
+      финальная структура + план работы — `docs/diary/2026-08-23_infra-restructure-plan.md`
+- [ ] Реализация хендлеров бота по `docs/specs/telegram-bot.md` — не начата
 - [x] GitHub Actions работоспособны — токен `gh` был протух под неверным аккаунтом
       (`kirill-ivanovvv` вместо `iwwwanow`), починили через `gh auth login`.
       Последний прогон (коммит `3a52e73`) — success. Подробности там же

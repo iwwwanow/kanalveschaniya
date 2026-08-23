@@ -123,7 +123,7 @@ domain: {
 repository (`telegram`, driven, реплаи+channel) — зафиксированы, вопросов не осталось.
 Схема готова как основа для рефакторинга каталогов.
 
-## Хендлеры бота — согласованы, зафиксированы в `docs/telegram-bot-spec.md`
+## Хендлеры бота — согласованы, зафиксированы в `docs/specs/telegram-bot.md`
 
 Итоговый список (все решения — детально в спеке, тут только суть):
 
@@ -153,19 +153,184 @@ repository (`telegram`, driven, реплаи+channel) — зафиксирова
   (`queue`/`telegram_reply_refs`) — только для дедупа *внутри* очереди
   (не пересекается с этой проверкой).
 
+## Обновление 2026-08-23 — две физические SQLite-БД вместо одной
+
+Продолжение обсуждения из сессии выше (`telegram_reply_refs`, предложенная
+`telegram_send_queue`) — решили пойти дальше логического разделения "один файл,
+разделение по владению таблицами" и завести **два физических файла**:
+
+- `data/app.db` — application/domain-owned: `queue`, `resource` (таблица `tracks`).
+  Реализует `domain.repository.queue`/`resource`, про эту БД знают use-cases
+  через порты, никакой telegram-специфики.
+- `data/telegram.db` — telegram-owned: `telegram_reply_refs`, `telegram_send_queue`.
+  Целиком приватная зона `infra/telegram`, не имплементирует domain-порты.
+
+Технически тривиально — `bun:sqlite` открывает независимые файлы через два
+`new Database(path)`, шарить коннект не нужно. Причина изменить решение —
+усилить изоляцию с логической (один файл, но домены не лезут в чужие таблицы)
+до физической (домены физически не могут дотянуться до чужих таблиц без
+явного второго клиента).
+
+**Осознанно теряем**: атомарные транзакции между `queue` и telegram-таблицами
+(SQLite умеет это только через `ATTACH DATABASE` в одном коннекте, не между
+двумя независимыми `Database`-инстансами). Не считается регрессией — это уже
+было решено не в один шаг делать: lookup `telegram_reply_refs` по `job_id` в
+`NotifierPort`-реализации и так зафиксирован как отдельный round-trip, не JOIN
+и не совместная транзакция с `queue`.
+
+**Следствие для реализации**: `runMigrations()` тоже разделяется на два набора,
+каждый привязан к своей БД/своему `Database`-инстансу, а не один общий список
+как сейчас в `src/db/schema.ts`.
+
+Схема обновлена в `docs/diagram.d2` — `infrastructure.repository.sqlite` (app.db)
+и `infrastructure.repository.telegram` (telegram.db) теперь отдельные под-узлы
+с перечислением таблиц внутри каждого.
+
+## Обновление 2026-08-23 — geo_blocked не должен быть литералом в generic queue.status
+
+Заметили течь: текущая схема (см. `CLAUDE.md`, актуальный код) держит
+`geo_blocked` прямо в `queue.status` вместе с generic `pending/processing/done/failed`.
+Это протаскивает знание о конкретной классификации ошибки yt-dlp (гео-ограничение)
+вверх, в generic `domain.repository.queue`/`application`, которые видеть это не должны —
+симметрично тому же принципу, по которому Telegram-детали не лезут в domain (см. выше
+про `NotifierPort`).
+
+**Решение**:
+
+- `queue.status` остаётся строго generic: `pending | processing | done | failed`.
+  `geo_blocked` из статуса убираем.
+- `queue.error` (уже есть) — свободный текст, как и был.
+- Добавляем `queue.block_reason TEXT` — **opaque** для domain/application. Use-case
+  (`ProcessDownloadJob`) не интерпретирует значение, просто сохраняет то, что вернул
+  `DownloaderPort` в `DownloadResult` (failure + опциональный `blockReason`).
+- Классификация "это именно гео-блок" происходит целиком в `infra/downloader/yt-dlp` —
+  адаптер парсит stderr/exit yt-dlp и сам решает, что записать в `blockReason`
+  (например строку `'geo'` — но это его собственное значение, не часть контракта,
+  который domain обязан понимать).
+- Логика «на старте, если задан `PROXY`, реквьюить джобы с `block_reason='geo'`» —
+  завязана сразу на два инфра-детали (env `PROXY` + конкретное значение `'geo'`,
+  придуманное yt-dlp-адаптером) и **не принадлежит ни application, ни domain**.
+  Место — либо сам `infra/downloader/yt-dlp` (экспортирует функцию
+  `requeueGeoBlockedIfProxyAvailable(queue: QueueRepository, proxy?: string)`),
+  либо composition root `main.ts`, который и так единственный, кому разрешено
+  сшивать инфра-детали друг с другом. Метод порта `QueueRepository` при этом
+  остаётся полностью generic — `requeueByBlockReason(reason, newStatus)`,
+  просто UPDATE по opaque-строке, порт не знает, что такое «geo».
+
+## Обновление 2026-08-23 — TrackCachePort вернули в схему
+
+`TrackCachePort` был задуман ещё в первой секции этого файла («channel-cache/ —
+infra-адаптер (driven): TrackCachePort через приватный канал») но не попал в финальный
+`docs/diagram.d2` (`domain.ports` остались только `downloader`, `notifier`). Вернули —
+подробная сигнатура и обоснование (почему `Port`, а не `Repository`) — в
+`docs/specs/types.md`.
+
+Коротко: `TrackCachePort` абстрагирует раздачу уже скачанного трека через механизм
+доставки (сейчас — Telegram-канал), а не просто хранение метаданных — поэтому `Port`,
+как `NotifierPort`/`DownloaderPort`, а не `Repository`, как `QueueRepository`/`ResourceRepository`.
+`deliver(track, jobId)` берёт opaque `jobId`, не `chatId`/`messageId` — telegram-адрес
+резолвится внутри реализации (`infra/telegram/channel-cache`) через lookup в
+`telegram_reply_refs`, тем же паттерном, что уже принят для `NotifierPort`.
+
+`docs/diagram.d2` также поправлен по структуре зависимостей: одна общая стрелка
+`infrastructure -> application -> domain` заменена на точную картину — только
+`infrastructure.presentation` реально зависит от `application` (зовёт use-cases),
+а `infrastructure.repository`/`infrastructure.adapters` (driven-адаптеры, реализуют
+domain-порты) зависят только от `domain`, `application` им не нужен вообще.
+
+## Обновление 2026-08-23 — аудит архитектуры: похожие течи на geo_blocked
+
+По просьбе ревью текущего кода (`src/`) на предмет данных, живущих не в том слое —
+той же природы, что и `geo_blocked` в `queue.status`. Приоритет по уверенности:
+
+1. **`tracks.channel_message_id` (`src/db/schema.ts:31-39`) — HIGH, самая прямая
+   аналогия.** `tracks` — будущий `domain.repository.resource`, generic-кэш метаданных
+   трека. `channel_message_id` — чистая telegram-деталь, ей там не место, ровно тот же
+   класс течи, что и `chat_id`/`message_id`, которые уже вынесены в
+   `telegram_reply_refs`. Симметричный фикс: `channel_message_id` уезжает в
+   `telegram_track_refs` (`data/telegram.db`), `tracks`/`resource` остаётся чисто
+   доменным (`track_id, url, title, duration, is_video, cached_at`). Именно это
+   и стало поводом вернуть `TrackCachePort` (секция выше) — раздача файла из кэша
+   нуждается в отдельном порту, а не в поле в generic-таблице.
+
+2. **Классификация ошибки geo/404 (`src/worker/index.ts:26-36`, `isGeoBlocked`/
+   `isNotFound`) — код-манифестация уже найденной течи.** Парсинг raw stderr yt-dlp
+   сейчас происходит в generic worker-loop (будущий `application`), а не в
+   `downloader.ts` (будущий `infra/downloader/yt-dlp`). `download()`/`getInfo()`
+   (`downloader.ts:77-118`) кидают голый `Error` с обрезком stderr — классификация
+   происходит снаружи адаптера. Фикс: `DownloaderPort`-реализация должна сама
+   классифицировать и возвращать typed `DownloadResult` (`{ok:false, blockReason:'geo',
+   retryable:true}`), а не кидать голый `Error`, который парсит вызывающий код.
+
+3. **Worker дёргает Telegram API напрямую (`src/worker/index.ts`, множество мест:
+   строки 103, 112, 173, 191, 210, 221, 248, 253) — самая объёмная по коду.**
+   `runWorker(bot: Telegraf, ...)` получает живой `Telegraf`-инстанс и напрямую зовёт
+   `bot.telegram.forwardMessage`/`sendMessage`. Это будущий `ProcessDownloadJob`
+   use-case, который должен звать только `NotifierPort`/`TrackCachePort`, ничего не
+   зная о Telegraf. Ожидаемо — это то, что чинит сам рефакторинг каталогов, но
+   отдельно стоит держать в виду как самый крупный кусок работы.
+
+4. **Presentation минует application, ходит в SQL напрямую (`src/bot/handlers.ts:26-30,
+   57-61, 70-74, 80`).** Хендлер бота сам пишет SQL к `queue`/`tracks`/`users` в обход
+   `QueueRepository`/`ResourceRepository`/use-case'ов. `EnqueueDownload` сейчас не
+   существует как отдельная функция — логика размазана внутри текстового хендлера.
+   Схлопывается в use-case при рефакторинге.
+
+5. **`users.username` (`src/db/schema.ts:5-9`) — LOW, под вопросом.** `users` не
+   scoped под telegram, но `username` — чисто telegram-профильная деталь, нигде не
+   читается обратно в бизнес-логике (только пишется при апсерте,
+   `handlers.ts:51-54`). Domain'у для `QueueItem.userId` достаточно opaque numeric id.
+   Кандидат на переезд в `infra/telegram` (`telegram_users`) либо на удаление, если
+   реально не используется — решение отложено, не блокирует остальное.
+
+## Смежная тема, не в этом файле
+
+**Cookies для yt-dlp (SoundCloud-авторизация)** — отдельная сложная фича, обсуждена
+и зафиксирована в `docs/backlog-cookies.md` (не здесь, чтобы не смешивать топики).
+Пересекается с этим рефакторингом: предлагаемый `CookieRepository` следует тому же
+принципу `Repository` vs `Port`, что и `TrackCachePort` выше (чистое хранение по
+ключу → `Repository`, не `Port`), а расширение `DownloaderPort` доп. параметром
+`cookiesPath` — тот же паттерн, что уже применён для `blockReason`/geo-классификации
+(развилка внутри `infra/downloader/yt-dlp`, не в domain/application). Пока не
+зафиксировано в `docs/diagram.d2`/`docs/specs/types.md` — сознательно, до момента
+когда фича станет актуальна для реализации.
+
 ## Остаток работы
 
+- [x] Типы (`domain/types.ts` + `infra/telegram/types.ts`) прописаны как черновик
+      в `docs/specs/types.md` — Track, QueueItem, DownloadResult, порты
+      (QueueRepository, ResourceRepository, DownloaderPort, NotifierPort, TrackCachePort),
+      TelegramReplyRef, TelegramTrackRef, TelegramSendQueueItem. Ещё не перенесены в код.
+- [ ] Аудит архитектуры (секция выше, 5 находок) — исправления в коде не начаты:
+      `tracks.channel_message_id` → `telegram_track_refs` (находка №1, повод для
+      `TrackCachePort`), классификация geo/404 → в `downloader.ts` (№2), worker
+      напрямую дёргает Telegraf (№3), presentation напрямую в SQL (№4),
+      `users.username` (№5, решение отложено)
 - [ ] Собственно рефакторинг структуры каталогов под `domain/application/infra` по схеме
       `docs/diagram.d2` — не начинали, только спроектировали
-- [ ] Реализация хендлеров бота по `docs/telegram-bot-spec.md`
+- [ ] Реализация хендлеров бота по `docs/specs/telegram-bot.md`
       (`handle-message`, `listen-channel` + фильтр по `reply_to_message`, admin-auth,
       `handle-channel-history` как заглушка)
-- [ ] Миграция `telegram_reply_refs` (или как её назовут при реализации) —
-      добавить в `runMigrations()` (см. `src/db/schema.ts`) когда дойдём до реализации реплаев
+- [ ] Схема `telegram_send_queue` (status/attempts/retry_after/error, тот же
+      backoff-паттерн 30s→60s→120s что у основного `queue-poller`) +
+      `infra/telegram/workers/send-queue-poller.ts` — спроектировано, не реализовано.
+      Подробности — секция «две физические SQLite-БД» выше.
+- [ ] Переход на две физические БД (`data/app.db` + `data/telegram.db`) вместо
+      текущей единой `data/bot.db` — миграция данных при реализации рефакторинга,
+      `runMigrations()` разделяется на два независимых набора.
+- [ ] Убрать `geo_blocked` из `queue.status`, завести `queue.block_reason TEXT`
+      (opaque для domain/application) + вынести классификацию гео-блока и
+      реквьюинг на старте в `infra/downloader/yt-dlp` — см. секцию выше.
+      **Меняет** текущую реализацию (`geo_blocked` сейчас реальный статус в проде,
+      см. `CLAUDE.md`) — при рефакторинге это миграция данных, не только схемы.
+- [ ] Форвард исходного сообщения вместе с треком в канал — фича из
+      `docs/agents/planning.md` («Бэклог: фичи»), технически подтверждено что
+      `forwardMessage`/reply-target для этого достаточно, отдельной инфры не требует
 - [ ] Вынести "текст → валидный URL или null" в общую чистую функцию — сейчас,
       видимо, где-то в `bot/handlers.ts`, нужна для переиспользования между
       `handle-message` и `listen-channel`
 - [ ] `Bun.cron()` — обсуждали как нативный планировщик Bun (minute-granularity, no-overlap
       guarantee); для основного `queue-poller` не подходит (нужна суб-минутная реакция,
       оставляем poll-loop), но пригодится для будущих периодических задач
-      (sweep зависших `geo_blocked`/`failed`, очистка `TMP_DIR`) — не реализовывали, просто вариант на заметку
+      (sweep зависших `failed`/заблокированных по `block_reason`, очистка `TMP_DIR`) —
+      не реализовывали, просто вариант на заметку
