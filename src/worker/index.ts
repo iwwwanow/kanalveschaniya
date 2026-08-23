@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { config } from "../config";
 import { getInfo, download } from "./downloader";
+import { sendMedia } from "./telegram-upload";
 import { logger } from "../logger";
 import type { Telegraf } from "telegraf";
 import { unlink, rename, mkdir, readFile } from "fs/promises";
@@ -221,31 +222,23 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
     return;
   }
 
-  // Read into memory instead of passing the path (Telegraf would stream it via
-  // fs.createReadStream): Bun's fetch drops chunked-transfer request bodies over
-  // an HTTP-CONNECT-proxied connection partway through, on files this size.
+  // Read into memory upfront — sendMedia() sends it as a Blob (known length,
+  // non-chunked) instead of a stream. See telegram-upload.ts for why.
   const fileBuffer = await readFile(result.filePath);
   const fileName = basename(result.filePath);
 
   if (config.cacheToChannel) {
     log.info(`job ${job.id} | uploading to channel`);
-    let channelMessageId: number;
 
-    if (result.isVideo) {
-      const msg = await bot.telegram.sendVideo(
-        config.channelId,
-        { source: fileBuffer, filename: fileName },
-        { caption: result.title, duration: result.duration }
-      );
-      channelMessageId = msg.message_id;
-    } else {
-      const msg = await bot.telegram.sendAudio(
-        config.channelId,
-        { source: fileBuffer, filename: fileName },
-        { caption: result.title, duration: result.duration, title: result.title }
-      );
-      channelMessageId = msg.message_id;
-    }
+    const { messageId: channelMessageId } = await sendMedia({
+      chatId: config.channelId,
+      buffer: fileBuffer,
+      filename: fileName,
+      isVideo: result.isVideo,
+      caption: result.title,
+      duration: result.duration,
+      title: result.title,
+    });
 
     db.run(
       `INSERT INTO tracks (track_id, url, channel_message_id, title, duration, is_video) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -257,19 +250,15 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
   } else {
     log.info(`job ${job.id} | sending directly to user (channel caching disabled)`);
 
-    if (result.isVideo) {
-      await bot.telegram.sendVideo(
-        job.user_id,
-        { source: fileBuffer, filename: fileName },
-        { caption: result.title, duration: result.duration }
-      );
-    } else {
-      await bot.telegram.sendAudio(
-        job.user_id,
-        { source: fileBuffer, filename: fileName },
-        { caption: result.title, duration: result.duration, title: result.title }
-      );
-    }
+    await sendMedia({
+      chatId: job.user_id,
+      buffer: fileBuffer,
+      filename: fileName,
+      isVideo: result.isVideo,
+      caption: result.title,
+      duration: result.duration,
+      title: result.title,
+    });
   }
 
   if (config.saveToContentDir) {
