@@ -3,7 +3,7 @@ import { config } from "../config";
 import { getInfo, download } from "./downloader";
 import { logger } from "../logger";
 import type { Telegraf } from "telegraf";
-import { unlink, rename, mkdir } from "fs/promises";
+import { unlink, rename, mkdir, readFile } from "fs/promises";
 import { basename, join } from "path";
 
 type WorkerLog = ReturnType<typeof logger.worker>;
@@ -221,6 +221,12 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
     return;
   }
 
+  // Read into memory instead of passing the path (Telegraf would stream it via
+  // fs.createReadStream): Bun's fetch drops chunked-transfer request bodies over
+  // an HTTP-CONNECT-proxied connection partway through, on files this size.
+  const fileBuffer = await readFile(result.filePath);
+  const fileName = basename(result.filePath);
+
   if (config.cacheToChannel) {
     log.info(`job ${job.id} | uploading to channel`);
     let channelMessageId: number;
@@ -228,14 +234,14 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
     if (result.isVideo) {
       const msg = await bot.telegram.sendVideo(
         config.channelId,
-        { source: result.filePath },
+        { source: fileBuffer, filename: fileName },
         { caption: result.title, duration: result.duration }
       );
       channelMessageId = msg.message_id;
     } else {
       const msg = await bot.telegram.sendAudio(
         config.channelId,
-        { source: result.filePath },
+        { source: fileBuffer, filename: fileName },
         { caption: result.title, duration: result.duration, title: result.title }
       );
       channelMessageId = msg.message_id;
@@ -254,13 +260,13 @@ async function processJob(bot: Telegraf, job: QueueRow, log: WorkerLog) {
     if (result.isVideo) {
       await bot.telegram.sendVideo(
         job.user_id,
-        { source: result.filePath },
+        { source: fileBuffer, filename: fileName },
         { caption: result.title, duration: result.duration }
       );
     } else {
       await bot.telegram.sendAudio(
         job.user_id,
-        { source: result.filePath },
+        { source: fileBuffer, filename: fileName },
         { caption: result.title, duration: result.duration, title: result.title }
       );
     }
