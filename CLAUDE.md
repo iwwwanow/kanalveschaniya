@@ -99,7 +99,7 @@ Tables: `users`, `queue`, `tracks`, `error_log`, `migrations`
 
 GitHub Actions in `.github/workflows/release.yml`:
 1. **release** job — semantic-release on push to `master`/`beta`, bumps version, creates GitHub release, updates `package.json` + `CHANGELOG.md`
-2. **docker** job — builds multi-platform image (amd64/arm64), pushes to `ghcr.io/iwwwanow/iwwwanow_kanalveshchaniya:VERSION` and `:latest`
+2. **docker** job — builds multi-platform image (amd64/arm64), pushes to `ghcr.io/iwwwanow/kanalveschaniya:VERSION` and `:latest`
 
 Versioning via conventional commits. Config in `.releaserc.json`.
 

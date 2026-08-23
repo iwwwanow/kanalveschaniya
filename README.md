@@ -1,4 +1,4 @@
-# kanalveshchaniya
+# kanalveschaniya
 
 ![logo](assets/logo/renders/logo.png)
 
@@ -57,7 +57,7 @@ docker run -d \
   -e BOT_TOKEN=... \
   -e CHANNEL_ID=... \
   -v ./data:/app/data \
-  ghcr.io/iwwwanow/iwwwanow_kanalveshchaniya:latest
+  ghcr.io/iwwwanow/kanalveschaniya:latest
 ```
 
 ## CI/CD
