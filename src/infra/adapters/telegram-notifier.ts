@@ -16,6 +16,7 @@ type FailureResult = Extract<DownloadResult, { ok: false }>;
 // blockReason is opaque to domain/application (see docs/specs/types.md) — this is infra,
 // so it's free to give the opaque string real meaning for user-facing text.
 function formatFailureMessage(result: FailureResult): string {
+	// is it error from yt-dlp adapter constants?
   if (result.blockReason === "geo") {
     return "Трек недоступен из-за гео-ограничения.\nБудет загружен автоматически при настройке прокси.";
   }

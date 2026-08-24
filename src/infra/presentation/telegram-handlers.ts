@@ -42,6 +42,7 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
 
   bot.start((ctx) => {
     ctx.reply(
+			// mv all messages to telegram.localization.json
       "Привет! Отправь мне ссылку на трек или плейлист (SoundCloud, YouTube, Bandcamp и др.) и я скачаю его для тебя."
     );
   });

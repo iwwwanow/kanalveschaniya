@@ -1,3 +1,4 @@
+// is it util?
 import { config } from "../../config";
 
 // Bypasses Telegraf's own HTTP client (fs.createReadStream + multipart-stream,

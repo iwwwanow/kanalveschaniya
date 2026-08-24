@@ -1,3 +1,4 @@
+// why we dont use drizzle?
 import type { Database } from "bun:sqlite";
 import type { QueueItem, QueueRepository, QueueStatus } from "../../domain/queue";
 

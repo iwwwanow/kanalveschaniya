@@ -10,7 +10,9 @@ export const config = {
   proxy: process.env.PROXY,
   tmpDir: process.env.TMP_DIR ?? "/tmp/ytdlp",
   contentDir: process.env.CONTENT_DIR ?? "./content",
+	// can we use boolean(required("CHANNEL_ID")) instead it?
   cacheToChannel: process.env.CACHE_TO_CHANNEL !== "false",
+	// can we use boolean(required("CONTENT_DIR")) instead it? and make it optional?
   saveToContentDir: process.env.SAVE_TO_CONTENT_DIR !== "false",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY ?? 3),
   workerIntervalMs: 5_000,

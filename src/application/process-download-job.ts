@@ -37,6 +37,7 @@ export type ProcessDownloadJobFn = (job: QueueItem, log: WorkerLog) => Promise<v
 
 export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessDownloadJobFn {
   function logError(jobId: number, url: string, error: string) {
+		// sql прям в app?
     deps.appDb.run(`INSERT INTO error_log (job_id, url, error) VALUES (?, ?, ?)`, [jobId, url, error]);
   }
 

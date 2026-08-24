@@ -1,3 +1,4 @@
+// why we dont use drizze with schema & migrations?
 import { Database } from "bun:sqlite";
 import { join } from "path";
 
