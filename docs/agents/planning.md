@@ -220,10 +220,17 @@ yt-dlp \
       Bot API не даёт истории канала, нужен MTProto для полной реализации)
 - [x] Типы (`domain`/`infra/telegram`) прописаны черновиком — `docs/specs/types.md`
       (Track, QueueItem, DownloadResult, порты, TelegramReplyRef, TelegramSendQueueItem)
-- [ ] Сам рефакторинг каталогов под `domain/application/infra` — не начат.
-      Подробности решений — `docs/diary/2026-08-22_clean-architecture-refactor.md`,
-      финальная структура + план работы — `docs/diary/2026-08-23_infra-restructure-plan.md`
-- [ ] Реализация хендлеров бота по `docs/specs/telegram-bot.md` — не начата
+- [x] Рефакторинг каталогов под `domain/application/infra` — реализован и закоммичен
+      в отдельном worktree (`.claude/worktrees/agent-aab999315a92a7e92`, ветка
+      `worktree-agent-aab999315a92a7e92`, коммит `2000e4a`), **ещё не смёрджен** в
+      `refactor/architecture` — ждёт ручного прогона в боте. `TrackCachePort` дополнительно
+      расслоён на `TrackStorePort`(find/save, массив)/`TrackCachePort`(+deliver,
+      duck-typing), добавлен `fs-cache-adapter.ts` для `CONTENT_DIR`. Подробности —
+      `docs/diary/2026-08-22_clean-architecture-refactor.md`,
+      `docs/diary/2026-08-23_infra-restructure-plan.md` (структура, план, реализация,
+      архитектурная ревизия 2026-08-24)
+- [x] Реализация хендлеров бота по `docs/specs/telegram-bot.md` — сделана в том же
+      worktree (`infra/presentation/telegram-handlers.ts`), см. выше
 - [x] GitHub Actions работоспособны — токен `gh` был протух под неверным аккаунтом
       (`kirill-ivanovvv` вместо `iwwwanow`), починили через `gh auth login`.
       Последний прогон (коммит `3a52e73`) — success. Подробности там же
