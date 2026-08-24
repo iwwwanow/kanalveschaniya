@@ -17,6 +17,8 @@ export interface TelegramChannelCacheDeps {
 
 export function createTelegramChannelCache(deps: TelegramChannelCacheDeps): TrackCachePort {
   return {
+    name: "channel",
+
     async find(trackId) {
       // Backend-proof first: resource — общая метаданных-таблица, её может писать и
       // другой TrackStorePort (например fs). Наличие строки там ничего не говорит о

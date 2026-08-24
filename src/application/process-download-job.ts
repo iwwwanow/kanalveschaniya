@@ -141,9 +141,13 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     log.info(`job ${job.id} | storing (${deps.stores.length} backend(s))`);
     let delivered = false;
     for (const store of deps.stores) {
+      log.info(`job ${job.id} | store=${store.name} | save start`);
       await store.save(result.track, result.filePath);
+      log.info(`job ${job.id} | store=${store.name} | save done`);
       if (isTrackCachePort(store)) {
+        log.info(`job ${job.id} | store=${store.name} | deliver start`);
         await store.deliver(result.track, job.id);
+        log.info(`job ${job.id} | store=${store.name} | deliver done`);
         delivered = true;
       }
     }

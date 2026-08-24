@@ -6,6 +6,9 @@ import type { Track } from "./resource";
 // TrackStorePort[] и фанаутит find/save по всем) — см. docs/diary/2026-08-23_infra-restructure-plan.md,
 // секция "Ревизия — 2026-08-24".
 export interface TrackStorePort {
+  // Короткое имя бэкенда для логов (какой именно стор сохраняет/падает) — см.
+  // process-download-job.ts, где каждый save()/deliver() логируется отдельно.
+  readonly name: string;
   find(trackId: string): Promise<Track | null>;
   save(track: Track, filePath: string): Promise<void>;
 }

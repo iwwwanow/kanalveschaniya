@@ -34,6 +34,8 @@ async function findLocalFile(contentDir: string, trackId: string): Promise<strin
 
 export function createFsCacheAdapter(deps: FsCacheAdapterDeps): TrackStorePort {
   return {
+    name: "fs",
+
     async find(trackId) {
       const path = await findLocalFile(deps.contentDir, trackId);
       if (!path) return null;
