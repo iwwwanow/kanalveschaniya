@@ -1,4 +1,4 @@
-import { config } from "../config";
+import { config } from "../../config";
 
 // Bypasses Telegraf's own HTTP client (fs.createReadStream + multipart-stream,
 // piped through Bun's Node-compat fetch shim) for file uploads specifically.
