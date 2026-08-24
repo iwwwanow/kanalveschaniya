@@ -44,11 +44,18 @@ interface NotifierPort {
   notify(jobId: number, result: DownloadResult): Promise<void>;
 }
 
-// Раздача уже скачанного трека из кэша. Не Repository — это не просто CRUD
-// доменных данных, а делегирование внешнему механизму доставки (см. секцию ниже).
-interface TrackCachePort {
+// Найти/сохранить трек в конкретном backend'е кэша. Не Repository — save() делегирует
+// внешнему механизму хранения, а не просто пишет CRUD-запись (см. секцию ниже). Может
+// быть несколько реализаций одновременно — application фанаутит find/save по массиву.
+interface TrackStorePort {
   find(trackId: string): Promise<Track | null>;
   save(track: Track, filePath: string): Promise<void>;
+}
+
+// TrackStorePort, который вдобавок умеет раздать уже сохранённый трек пользователю через
+// свой backend. Используется как единственный экземпляр (НЕ через TrackStorePort[]-массив) —
+// deliver принципиально не обобщается на произвольный store, см. секцию ниже.
+interface TrackCachePort extends TrackStorePort {
   deliver(track: Track, jobId: number): Promise<void>; // opaque jobId, НЕ chatId/messageId —
                                                           // реализация сама резолвит адрес,
                                                           // как это уже делает NotifierPort
@@ -71,18 +78,68 @@ interface ResourceRepository {
 
 `*Repository` (`QueueRepository`, `ResourceRepository`) — технология-агностичное хранение
 доменных данных (CRUD по ключу, неважно sqlite это или postgres). `*Port`
-(`DownloaderPort`, `NotifierPort`, `TrackCachePort`) — пересечение границы с внешней
-системой, где происходит больше, чем «сохранить/прочитать» (скачать файл процессом,
-отправить сообщение, раздать файл через канал доставки). `TrackCachePort` раздаёt файл
-через конкретный механизм (Telegram-канал), а не просто хранит метаданные — поэтому Port,
-не Repository. Реализация (`infra/telegram/channel-cache`) может внутри себя называться
-как угодно, хоть `TelegramChannelRepo` — на имя порта в domain это не влияет, там имя
-остаётся технологически нейтральным.
+(`DownloaderPort`, `NotifierPort`, `TrackStorePort`/`TrackCachePort`) — пересечение
+границы с внешней системой, где происходит больше, чем «сохранить/прочитать» (скачать
+файл процессом, отправить сообщение, раздать файл через канал доставки). `save()` раздаёт
+файл через конкретный механизм (Telegram-канал), а не просто хранит метаданные — поэтому
+Port, не Repository. Реализация (`infra/telegram/channel-cache`) может внутри себя
+называться как угодно, хоть `TelegramChannelRepo` — на имя порта в domain это не влияет,
+там имя остаётся технологически нейтральным.
+
+### `TrackStorePort` vs `TrackCachePort` — почему `deliver` не в общем порту
+
+Обнаружено в сессии 2026-08-24 при проектировании fs-адаптера для `CONTENT_DIR` (сейчас
+эта логика — инлайновый `fs`-код прямо в `application/process-download-job.ts`, находка
+аудита, см. `docs/diary/2026-08-23_infra-restructure-plan.md`, секция «Ревизия —
+2026-08-24»). Идея — сделать fs-версию `TrackCachePort`, чтобы application фанаутил
+`find`/`save` по массиву реализаций вместо инлайнового кода.
+
+`deliver(track, jobId)` в эту идею **не укладывается**: она физически завязана на
+Telegram-специфичные данные (`telegram_track_refs`/`channelId` для `forwardMessage`), к
+которым у fs-стора нет и не может быть доступа — «доставка» локального файла
+пользователю всё равно идёт через Telegram, не через сам fs. Обобщать `deliver` на
+произвольный store — фиктивная абстракция (no-op или заглушка на не-telegram
+реализациях).
+
+Поэтому порт расслоён на два:
+- `TrackStorePort` (`find`/`save`) — generic, может быть несколько реализаций
+  одновременно (`stores: TrackStorePort[]`, fan-out).
+- `TrackCachePort extends TrackStorePort` добавляет `deliver` — остаётся
+  telegram-специфичным. В массиве `stores` определяется через duck-typing
+  (`isTrackCachePort(store): store is TrackCachePort`, проверка `typeof store.deliver ===
+  "function"`) — application перебирает `stores` и зовёт `deliver()` у тех, кто его
+  реализует, вместо отдельного поля/массива под "доставляемые" сторы.
+
+Реализовано (не только спроектировано) — `fs-cache-adapter.ts` (`TrackStorePort`,
+сохраняет в `content/{mp3,mp4}/{sanitizeTitle(title)}_{trackId}.{ext}` — человекочитаемое
+имя + trackId в суффиксе; `find()` сканирует директорию через `readdir` и матчит по
+суффиксу `_{trackId}.{ext}`, без отдельного индекса path-по-track_id) вынес прежний
+инлайновый `fs`-код из `application/process-download-job.ts`. Cache-hit-проверка в
+application — `findDeliverable(trackId)`: чистый lookup (не отправляет ничего сам),
+вызывающий код явным отдельным вызовом делает `store.deliver(track, jobId)`.
+`telegram-channel-cache.ts` не менялся по сути — как реализовывал все три метода, так и
+реализовывает; один объект просто удовлетворяет обоим интерфейсам (TS structural typing).
+Единственная правка в самой реализации — `find()` там стал сначала проверять
+`telegram_track_refs` (backend-proof), а не сразу общую `resource`-таблицу, — иначе с
+появлением второго писателя в `resource` (fs-стор) `find()` мог бы соврать "есть в
+канале" для трека, закэшированного только на диске, и `deliver()` падал бы. Подробности —
+`docs/diary/2026-08-23_infra-restructure-plan.md`, секция «Ревизия — 2026-08-24».
+
+Известное ограничение (открыто в бэклоге): cache-hit-проверка в application смотрит
+только на сторы с `deliver` — fs-only хит (`CACHE_TO_CHANNEL=false`) не переиспользуется,
+трек скачается заново, т.к. fs-стор физически не может сам раздать файл пользователю.
 
 `deliver(track, jobId)` берёт **opaque `jobId`**, а не `chatId`/`messageId` — иначе
 telegram-специфичные данные протекли бы в сигнатуру domain-порта. Реализация сама
 резолвит адрес через lookup в `telegram_reply_refs` по `jobId`, точно так же, как уже
 делает реализация `NotifierPort`.
+
+Заодно замечено пересечение ответственности: `NotifierPort.notify()` и
+`TrackCachePort.deliver()` оба резолвят `jobId → chatId` через `telegram_reply_refs` и оба
+шлют что-то пользователю через Telegram Bot API — но не полный дубль (`notify` шлёт
+свежескачанные байты через `sendMedia`, `deliver` форвардит уже существующее сообщение из
+канала через `forwardMessage`). Решено **не трогать** — см. диари, там же открытый вопрос
+про fs-only cache-hit (нет `deliver`, нужен будет fallback через `NotifierPort`).
 
 ### `blockReason` — opaque-поле
 

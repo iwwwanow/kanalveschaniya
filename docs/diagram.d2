@@ -3,6 +3,10 @@ infrastructure.presentation -> application
 infrastructure.repository -> domain
 infrastructure.adapters -> domain
 
+domain.ports.track-cache -> domain.ports.track-store: "extends"
+infrastructure.adapters.channel-cache -> domain.ports.track-cache: "implements"
+infrastructure.adapters.content-cache -> domain.ports.track-store: "implements"
+
 infrastructure: {
   presentation: {
     telegram-bot
@@ -10,6 +14,7 @@ infrastructure: {
   adapters: {
     yt-dlp
     channel-cache
+    content-cache
   }
   repository: {
     sqlite: {
@@ -45,7 +50,10 @@ domain: {
   ports: {
     downloader
     notifier
-    track-cache
+    track-store
+    track-cache: {
+      label: "track-cache\n(extends track-store + deliver)"
+    }
   }
   repository: {
     queue
