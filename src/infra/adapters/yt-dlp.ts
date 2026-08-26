@@ -76,6 +76,9 @@ export function createYtDlpDownloader(): DownloaderPort {
       const isPlaylist = raw._type === "playlist" && Array.isArray(raw.entries);
 
       if (isPlaylist) {
+        if (!config.allowPlaylistDownloads) {
+          throw new Error(`playlist refused (ALLOW_PLAYLIST_DOWNLOADS=false) — ${raw.entries!.length} entries at ${url}`);
+        }
         return { entries: raw.entries!.map(metaToTrack) };
       }
 
@@ -86,6 +89,20 @@ export function createYtDlpDownloader(): DownloaderPort {
       try {
         const infoStdout = await runYtDlpOrThrow(["-J", "--no-playlist", url]);
         const meta: YtDlpMeta = JSON.parse(infoStdout);
+
+        // `--no-playlist` only suppresses expansion when a URL refers to BOTH a single
+        // item and a playlist (e.g. a YouTube video inside a playlist) — a pure-playlist
+        // URL (e.g. a SoundCloud /sets/ album) is still expanded here regardless, and
+        // this would silently download every entry in sequence. See incident 2026-08-26.
+        const isPlaylist = meta._type === "playlist" || Array.isArray(meta.entries);
+        if (isPlaylist && !config.allowPlaylistDownloads) {
+          return {
+            ok: false,
+            error: `playlist download refused (ALLOW_PLAYLIST_DOWNLOADS=false) — ${url}`,
+            retryable: false,
+          };
+        }
+
         const isVideo = !!meta.vcodec && meta.vcodec !== "none";
         const outputTemplate = join(config.tmpDir, `${meta.id}.%(ext)s`);
 
