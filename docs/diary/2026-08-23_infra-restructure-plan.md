@@ -432,11 +432,35 @@ typecheck` чист, конфликт-маркеров не осталось н�
 - [ ] После инфра-деплоя — сквозной прод-тест на боевом боте/канале (не dev), проверить
       лог `legacy migration complete: ...` появился один раз на первом старте
 - [ ] `docs/agents/planning.md`/`CLAUDE.md` (этого репо) всё ещё описывают дорефакторную
-      структуру (`src/bot/`, `src/db/`, `src/worker/`) — обновить под `domain/application/infra`
-- [ ] `docs/backlog.md` — 6 пунктов из сессии 2026-08-24 (не блокировали мёрдж, брать по
-      одному отдельными заходами): `blockReason` без типа, `error_log` в обход
-      репозитория, `extractUrl` не парсит URL внутри текста, `NotifierPort`/`TrackCachePort`
-      пересечение, drizzle-путь на потом, централизация UX-строк, изоляция сторов,
-      мусор в `queue` (stale `error`, непубликуемый `track_id`)
-- [ ] Открытый архитектурный хвост — fs-only cache-hit не переиспользуется
-      (`CACHE_TO_CHANNEL=false` → повторное скачивание), не блокирует (не дефолтный сценарий)
+      структуру (`src/bot/`, `src/db/`, `src/worker/`) — обновить под `domain/application/infrastructure`.
+      Заодно не по канону `CLAUDE.md` (`docs/agents/`-вложенность вместо плоского `docs/`) —
+      не трогали, юзер решит сам
+
+## `infra/` → `infrastructure/` + правки бэклога — сессия 2026-08-26
+
+Юзер вручную (не через Claude) сделал за день три коммита: `8a2fe59`/`6f503b8` —
+дополнения в старый монолитный `docs/backlog.md`; `0d72790` — разбил его на отдельные
+файлы `docs/backlog/2026-08-26_<slug>.md` по канону из корневого `CLAUDE.md` (один файл на
+тему, вместо одного растущего списка) — все прежние 6+ пунктов сессии 2026-08-24 теперь
+там же, каждый отдельным файлом (`blockreason-shared-type`, `notifier-trackcache-overlap`,
+`fs-only-cache-hit-no-deliver`, `isolate-stores-process-download-job`,
+`queue-stale-error-track-id-cleanup`, `error-log-write-bypasses-repository`,
+`extract-url-inline-text`, `drizzle-migration-deferred`, `drm-tracks-fast-fail`,
+`bot-ux-text-cleanup`, и ещё несколько новых); `fb405f6` — добавил `--no-playlist` флаг
+yt-dlp через новый `config.ts`-параметр; `f1f33e5` — переименовал каталог
+`src/infra/` → `src/infrastructure/` (планировалось как `infra/` в самом начале, но по
+ходу реализации агент в ворктри уже называл его `infrastructure/` местами — привели к
+единообразию, финальное имя `infrastructure/`).
+
+**Переименование каталога не задело `src/main.ts`** — единственный файл, где путь
+`./infra/...` был захардкожен по всем 13 импортам (composition root, самый нижний слой,
+mv/rename тулингом его не поймал). `bun run typecheck` ломался с `TS2307: Cannot find
+module './infra/...'`. Юзер попросил починить typecheck — заменил все 13 импортов
+`./infra/` → `./infrastructure/` (простой sed, других мест с `infra/` в `src/` не было,
+проверено grep'ом). `bun run typecheck` снова чистый. Юзер закоммитил сам (`6dccd2e
+fix(main): infra dir name`), по правилу "никогда не коммитит Claude".
+
+**Остаток не изменился** — см. пункты выше (инфра-деплой, прод-тест, `planning.md`/`CLAUDE.md`
+всё ещё описывают дорефакторную структуру). Открытый архитектурный хвост fs-only cache-hit
+теперь живёт как `docs/backlog/2026-08-26_fs-only-cache-hit-no-deliver.md` вместо записи в
+дневнике — дальше отслеживать там.
