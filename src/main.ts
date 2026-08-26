@@ -2,22 +2,22 @@ import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { logger } from "./logger";
 import { config } from "./config";
-import { openAppDb } from "./infra/db/app-db";
-import { openTelegramDb } from "./infra/db/telegram-db";
-import { migrateLegacyDb } from "./infra/db/migrate-legacy";
-import { createQueueRepository } from "./infra/repository/queue-repository";
-import { createResourceRepository } from "./infra/repository/resource-repository";
-import { createTelegramReplyRefsRepository } from "./infra/repository/telegram-reply-refs";
-import { createTelegramTrackRefsRepository } from "./infra/repository/telegram-track-refs";
-import { createYtDlpDownloader, requeueGeoBlockedIfProxyAvailable } from "./infra/adapters/yt-dlp";
-import { createTelegramNotifier } from "./infra/adapters/telegram-notifier";
-import { createTelegramChannelCache } from "./infra/adapters/telegram-channel-cache";
-import { createFsCacheAdapter } from "./infra/adapters/fs-cache-adapter";
+import { openAppDb } from "./infrastructure/db/app-db";
+import { openTelegramDb } from "./infrastructure/db/telegram-db";
+import { migrateLegacyDb } from "./infrastructure/db/migrate-legacy";
+import { createQueueRepository } from "./infrastructure/repository/queue-repository";
+import { createResourceRepository } from "./infrastructure/repository/resource-repository";
+import { createTelegramReplyRefsRepository } from "./infrastructure/repository/telegram-reply-refs";
+import { createTelegramTrackRefsRepository } from "./infrastructure/repository/telegram-track-refs";
+import { createYtDlpDownloader, requeueGeoBlockedIfProxyAvailable } from "./infrastructure/adapters/yt-dlp";
+import { createTelegramNotifier } from "./infrastructure/adapters/telegram-notifier";
+import { createTelegramChannelCache } from "./infrastructure/adapters/telegram-channel-cache";
+import { createFsCacheAdapter } from "./infrastructure/adapters/fs-cache-adapter";
 import type { TrackStorePort } from "./domain/track-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
 import { createProcessDownloadJob } from "./application/process-download-job";
-import { createBot } from "./infra/presentation/telegram-bot";
-import { startQueuePoller } from "./infra/workers/queue-poller";
+import { createBot } from "./infrastructure/presentation/telegram-bot";
+import { startQueuePoller } from "./infrastructure/workers/queue-poller";
 
 // DATA_DIR handling preserved as-is (read directly, not via config.ts) — now resolves
 // app.db + telegram.db + a possible legacy bot.db in the same directory.
