@@ -196,7 +196,7 @@ yt-dlp \
       не превью; подтверждено yt-dlp issue #8390). Сложная фича (код + k8s Secret +
       операционный ре-экспорт) — подробности, архитектура (`CookieRepository`,
       `DownloaderPort` с опциональными куки) и открытый вопрос про удобный экспорт
-      с телефона — `docs/backlog-cookies.md`. Пока не зафиксировано в
+      с телефона — `docs/backlog/2026-08-26_yt-dlp-soundcloud-cookies.md`. Пока не зафиксировано в
       `docs/diagram.d2`/`docs/specs/types.md`.
 
 - [ ] **Форвардить в канал изначальное сообщение вместе с треком**
@@ -237,5 +237,5 @@ yt-dlp \
 
 ## Хостинг / инфраструктура
 
-- [x] Перенести бота на домашний Raspberry Pi 3B+ + k3s (учебная цель заодно). **k3s и Flux подняты и стабильны**, бот задеплоен через GitOps и отвечает в Telegram (сессия 2026-08-23). **GitOps-манифесты и вся дальнейшая работа по кластеру — в отдельном репозитории `infrastructure`** (переименован из `infrastructure_pi`, `git@github.com:iwwwanow/infrastructure.git`), не здесь — см. его `docs/k3s-flux-bootstrap.md` (полный ран-бук) и дневники за подробностями. Подключение — `ssh pi` (mDNS-алиас, `~/.ssh/config.d/personal.conf`). Прокси для обхода блокировки Telegram API — см. `docs/backlog.md` в этом репозитории (контейнеризация — TODO, сейчас стопгэп на хосте). Подробности по железу/сети (питание, разметка флешек, Wi-Fi) — `docs/diary/2026-08-19_raspberry-pi-hosting.md` в этом репозитории.
+- [x] Перенести бота на домашний Raspberry Pi 3B+ + k3s (учебная цель заодно). **k3s и Flux подняты и стабильны**, бот задеплоен через GitOps и отвечает в Telegram (сессия 2026-08-23). **GitOps-манифесты и вся дальнейшая работа по кластеру — в отдельном репозитории `infrastructure`** (переименован из `infrastructure_pi`, `git@github.com:iwwwanow/infrastructure.git`), не здесь — см. его `docs/k3s-flux-bootstrap.md` (полный ран-бук) и дневники за подробностями. Подключение — `ssh pi` (mDNS-алиас, `~/.ssh/config.d/personal.conf`). Прокси для обхода блокировки Telegram API — см. `docs/backlog/2026-08-26_containerize-telegram-proxy.md` в этом репозитории (контейнеризация — TODO, сейчас стопгэп на хосте). Подробности по железу/сети (питание, разметка флешек, Wi-Fi) — `docs/diary/2026-08-19_raspberry-pi-hosting.md` в этом репозитории.
 - [x] `CACHE_TO_CHANNEL` / `SAVE_TO_CONTENT_DIR` — независимая опциональность обоих способов сохранения медиа, с валидацией «хотя бы один обязателен» — см. дневник выше
