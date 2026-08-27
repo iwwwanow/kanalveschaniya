@@ -17,6 +17,7 @@ import type { TrackStorePort } from "./domain/track-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
 import { createProcessDownloadJob } from "./application/process-download-job";
 import { createBot } from "./infrastructure/presentation/telegram-bot";
+import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePoller } from "./infrastructure/workers/queue-poller";
 
 // DATA_DIR handling preserved as-is (read directly, not via config.ts) — now resolves
@@ -77,6 +78,8 @@ const processDownloadJob = createProcessDownloadJob({
 
 await requeueGeoBlockedIfProxyAvailable(queueRepo);
 startQueuePoller(queueRepo, processDownloadJob);
+
+startHealthServer(config.healthPort);
 
 bot.launch();
 logger.bot.info("started");

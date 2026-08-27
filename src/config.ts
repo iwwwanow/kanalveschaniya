@@ -16,6 +16,7 @@ export const config = {
   saveToContentDir: process.env.SAVE_TO_CONTENT_DIR !== "false",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY ?? 3),
   workerIntervalMs: 5_000,
+  healthPort: Number(process.env.HEALTH_PORT ?? 3000),
   maxFileSizeBytes: 50 * 1024 * 1024, // 50MB Telegram limit
   // Incident 2026-08-26: a pasted playlist link fanned out into 1800+ queued jobs and
   // starved the Pi. Playlists refused by default; set ALLOW_PLAYLIST_DOWNLOADS=true to
