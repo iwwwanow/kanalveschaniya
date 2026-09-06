@@ -1,5 +1,4 @@
 import type { Telegraf } from "telegraf";
-import { readFile } from "fs/promises";
 import { basename } from "path";
 import type { Track, ResourceRepository } from "../../domain/resource";
 import type { TrackCachePort } from "../../domain/track-cache";
@@ -34,11 +33,10 @@ export function createTelegramChannelCache(deps: TelegramChannelCacheDeps): Trac
       // Track — nothing in domain/application needs to know audio vs video, only the
       // upload step does (see final report for rationale).
       const isVideo = filePath.endsWith(".mp4");
-      const buffer = await readFile(filePath);
 
       const { messageId } = await sendMedia({
         chatId: deps.channelId,
-        buffer,
+        filePath,
         filename: basename(filePath),
         isVideo,
         caption: track.title,

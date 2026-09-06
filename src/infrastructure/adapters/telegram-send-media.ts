@@ -19,7 +19,7 @@ interface SendMediaResult {
 
 export async function sendMedia(opts: {
   chatId: number | string;
-  buffer: Buffer;
+  filePath: string;
   filename: string;
   isVideo: boolean;
   caption?: string;
@@ -30,9 +30,12 @@ export async function sendMedia(opts: {
   const field = opts.isVideo ? "video" : "audio";
   const mimeType = opts.isVideo ? "video/mp4" : "audio/mpeg";
 
+  // Bun.file() gives FormData a known size (via lazy stat) without reading the
+  // file into JS memory, so the upload streams straight from disk — no readFile()
+  // Buffer copy layered under a second Blob copy of the same bytes.
   const form = new FormData();
   form.append("chat_id", String(opts.chatId));
-  form.append(field, new Blob([opts.buffer], { type: mimeType }), opts.filename);
+  form.append(field, Bun.file(opts.filePath, { type: mimeType }), opts.filename);
   if (opts.caption) form.append("caption", opts.caption);
   if (opts.duration) form.append("duration", String(opts.duration));
   if (!opts.isVideo && opts.title) form.append("title", opts.title);

@@ -1,5 +1,4 @@
 import type { Telegraf } from "telegraf";
-import { readFile } from "fs/promises";
 import { basename } from "path";
 import type { DownloadResult } from "../../domain/download";
 import type { NotifierPort } from "../../domain/notifier";
@@ -47,10 +46,9 @@ export function createTelegramNotifier(deps: TelegramNotifierDeps): NotifierPort
         // Only called when caching is disabled (CACHE_TO_CHANNEL=false) — when caching is
         // enabled, TrackCachePort.deliver() already handled delivery (plan decision #5).
         const isVideo = result.filePath.endsWith(".mp4");
-        const buffer = await readFile(result.filePath);
         await sendMedia({
           chatId: ref.chatId,
-          buffer,
+          filePath: result.filePath,
           filename: basename(result.filePath),
           isVideo,
           caption: result.track.title,
