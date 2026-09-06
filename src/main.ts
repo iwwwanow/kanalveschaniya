@@ -19,6 +19,7 @@ import { createProcessDownloadJob } from "./application/process-download-job";
 import { createBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePoller } from "./infrastructure/workers/queue-poller";
+import { recoverStuckProcessingJobs } from "./infrastructure/workers/recover-stuck-jobs";
 
 // DATA_DIR handling preserved as-is (read directly, not via config.ts) — now resolves
 // app.db + telegram.db + a possible legacy bot.db in the same directory.
@@ -76,6 +77,7 @@ const processDownloadJob = createProcessDownloadJob({
   registerPlaylistEntryOrigin: (childJobId, userId) => replyRefs.save(childJobId, userId, null),
 });
 
+await recoverStuckProcessingJobs(queueRepo, notifier);
 await requeueGeoBlockedIfProxyAvailable(queueRepo);
 startQueuePoller(queueRepo, processDownloadJob);
 

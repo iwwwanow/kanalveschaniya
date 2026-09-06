@@ -26,6 +26,9 @@ function formatFailureMessage(result: FailureResult): string {
   if (result.blockReason === "too_large") {
     return result.error;
   }
+  if (result.blockReason === "crashed_repeatedly") {
+    return "Не удалось загрузить трек — скачивание несколько раз подряд приводило к сбою (вероятно, трек слишком большой/длинный).";
+  }
   if (result.error.includes("HTTP Error 404")) {
     return "Не удалось загрузить: трек не найден (404).";
   }

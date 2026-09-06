@@ -1,5 +1,14 @@
 export type QueueStatus = "pending" | "processing" | "done" | "failed";
 
+// Shared with the crash-recovery path (infra/workers/recover-stuck-jobs.ts) so a process
+// crash mid-download counts as an attempt the same way an in-process failure does —
+// otherwise a track whose download crashes the whole process retries forever.
+export const MAX_RETRIES = 3;
+
+export function backoffSeconds(retries: number): number {
+  return 30 * Math.pow(2, retries);
+}
+
 export interface QueueItem {
   id: number;
   url: string;
@@ -21,4 +30,8 @@ export interface QueueRepository {
   updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
   requeueByBlockReason(reason: string, newStatus: QueueStatus): Promise<void>;
   countByStatusForUser(userId: number): Promise<Record<string, number>>;
+  // Jobs left in 'processing' by a run that died mid-download (OOM-kill, pod restart) —
+  // never reached the in-process catch, so never got a chance to update their own status.
+  // Startup-only, see infra/workers/recover-stuck-jobs.ts.
+  findStuckProcessing(): Promise<QueueItem[]>;
 }

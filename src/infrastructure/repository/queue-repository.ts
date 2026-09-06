@@ -107,6 +107,11 @@ export function createQueueRepository(db: Database): QueueRepository {
       );
     },
 
+    async findStuckProcessing() {
+      const rows = db.query<QueueRow, []>(`SELECT * FROM queue WHERE status = 'processing'`).all();
+      return rows.map(toQueueItem);
+    },
+
     async countByStatusForUser(userId) {
       const rows = db
         .query<{ status: string; count: number }, [number]>(

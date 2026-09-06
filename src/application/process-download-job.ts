@@ -1,13 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { unlink } from "fs/promises";
 import { config } from "../config";
-import type { QueueItem, QueueRepository } from "../domain/queue";
+import { type QueueItem, type QueueRepository, MAX_RETRIES, backoffSeconds } from "../domain/queue";
 import type { Track } from "../domain/resource";
 import type { DownloaderPort } from "../domain/download";
 import type { NotifierPort } from "../domain/notifier";
 import { type TrackStorePort, type TrackCachePort, isTrackCachePort } from "../domain/track-cache";
-
-const MAX_RETRIES = 3;
 
 export interface WorkerLog {
   info(...args: unknown[]): void;
@@ -187,14 +185,14 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
         await deps.queue.updateStatus(job.id, "failed", { error });
         await deps.notifier.notify(job.id, { ok: false, error, retryable: false });
       } else {
-        const delayMs = 30_000 * Math.pow(2, job.retries);
-        const retryAt = Math.floor(Date.now() / 1000) + Math.floor(delayMs / 1000);
+        const delaySeconds = backoffSeconds(job.retries);
+        const retryAt = Math.floor(Date.now() / 1000) + delaySeconds;
         await deps.queue.updateStatus(job.id, "pending", {
           retries: job.retries + 1,
           error,
           retryAfter: retryAt,
         });
-        log.info(`job ${job.id} | requeued for retry in ${delayMs / 1000}s`);
+        log.info(`job ${job.id} | requeued for retry in ${delaySeconds}s`);
       }
     }
   };

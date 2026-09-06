@@ -2,240 +2,128 @@
 
 ## Цель
 
-Telegram-бот для скачивания музыки через yt-dlp с кэшированием через приватный Telegram-канал.
+Telegram-бот для скачивания музыки/видео через yt-dlp с кэшированием через приватный Telegram-канал.
 
-## Архитектура
+Архитектура, стек, схема БД, env vars — актуальное описание в корневом `CLAUDE.md`, здесь не дублируется.
+Спецификации: `docs/specs/telegram-bot.md` (хендлеры), `docs/specs/types.md` (типы/порты), `docs/diagram.d2` (схема слоёв).
 
-```
-User → Bot (link/playlist)
-           ↓
-       SQLite queue
-           ↓
-       Worker (yt-dlp)
-           ↓
-       Post audio → Channel (сохранить message_id)
-           ↓
-       Bot forward → User
+## Статус
 
-Повторный запрос → Bot forward из Channel (без скачивания)
-```
+Ядро + переход на clean-архитектуру (`domain/application/infrastructure`) — сделаны, смёржены, отрелизены как
+**2.0.0** (`feat!`, breaking change по схеме БД: `bot.db` → `app.db`+`telegram.db`, авто-миграция на старте).
+Подробная история решений и ревизий — `docs/diary/2026-08-22_clean-architecture-refactor.md`,
+`docs/diary/2026-08-23_infra-restructure-plan.md`.
 
-## Стек
-
-- **Runtime**: Bun
-- **Language**: TypeScript
-- **DB**: SQLite via `bun:sqlite` (встроенный)
-- **Bot**: Telegraf
-- **Downloader**: yt-dlp через `Bun.spawn`
-- **Формат**: нативный (opus/m4a/best — без конвертации)
-
-## SQLite схема
-
-```sql
--- Очередь заданий
-CREATE TABLE queue (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  url         TEXT NOT NULL,
-  track_id    TEXT,               -- yt-dlp extractor ID (null до разворачивания)
-  user_id     INTEGER NOT NULL,
-  status      TEXT DEFAULT 'pending', -- pending | processing | done | failed
-  error       TEXT,
-  created_at  INTEGER DEFAULT (unixepoch())
-);
-
--- Кэш скачанных треков
-CREATE TABLE tracks (
-  track_id           TEXT PRIMARY KEY,  -- yt-dlp ID (extractor + id)
-  url                TEXT NOT NULL,
-  channel_message_id INTEGER NOT NULL,
-  title              TEXT,
-  duration           INTEGER,
-  cached_at          INTEGER DEFAULT (unixepoch())
-);
-
--- Пользователи
-CREATE TABLE users (
-  user_id    INTEGER PRIMARY KEY,
-  username   TEXT,
-  first_seen INTEGER DEFAULT (unixepoch())
-);
-```
-
-## Структура проекта
-
-```
-src/
-├── bot/
-│   ├── index.ts          # Telegraf setup, старт polling
-│   └── handlers.ts       # onText → валидация URL → очередь или forward
-├── worker/
-│   ├── index.ts          # setInterval loop, берёт pending из queue
-│   └── downloader.ts     # Bun.spawn yt-dlp, парсинг JSON метадаты
-├── db/
-│   ├── index.ts          # Database singleton (bun:sqlite)
-│   └── schema.ts         # CREATE TABLE IF NOT EXISTS
-├── config.ts             # process.env валидация
-└── main.ts               # запуск bot + worker в одном процессе
-.env.example
-package.json
-tsconfig.json
-```
-
-## Env переменные
-
-```env
-BOT_TOKEN=       # Telegram bot token
-CHANNEL_ID=      # ID приватного канала (например -1001234567890)
-PROXY=           # опционально: socks5://localhost:9090
-```
-
-## Логика воркера
-
-### Плейлист/трек — алгоритм
-
-```
-1. Взять задание со статусом pending
-2. Запустить: yt-dlp --flat-playlist -J <url>
-3. Если entries[] → развернуть каждый трек в отдельную queue запись (status=pending, track_id заполнен)
-4. Если один трек → проверить tracks по track_id
-   a. Есть в кэше → forward channel_message_id пользователю, статус done
-   b. Нет → скачать, загрузить в канал, сохранить в tracks, forward пользователю
-5. Статус задания → done / failed
-```
-
-### yt-dlp аргументы для скачивания
-
-```bash
-yt-dlp \
-  --no-playlist \           # один трек за раз
-  -f bestaudio \
-  --print-json \            # метадата в stdout
-  [--proxy socks5://...] \  # если PROXY задан
-  -o /tmp/ytdlp/%(id)s.%(ext)s \
-  <url>
-```
+**Прод-деплой 2.0.0 подтверждён** (digest образа на GHCR сверен с подом на Pi, ручной перенос уже
+смигрированной БД в обход медленного батчинга на SD-карте) — подробности в репозитории `infrastructure`,
+`docs/diary/2026-08-24_kanalveschaniya-2.0.0-prod-migration.md`. С тех пор в код добавлено (уже в `master`,
+не отражено в бэклоге, т.к. заведено по итогам инцидентов на Pi, а не ревью кода):
+- `ALLOW_PLAYLIST_DOWNLOADS` (`src/config.ts`, default `false`) — плейлисты отклоняются на `getInfo()` и
+  `download()`, пока явно не включено. Реакция на инцидент 2026-08-26 (SoundCloud-альбом на 1891 трек
+  зависил yt-dlp в D-state под I/O-голоданием Pi).
+- `/healthz` + `HEALTH_PORT` (`src/infrastructure/presentation/health-server.ts`) — heartbeat-таймер,
+  503 если event loop подвис. Подключён как `livenessProbe` в манифесте `infrastructure`-репо (коммит
+  `c53ad27`) — реакция на то, что зависший (не упавший) под раньше требовал ручного ребута ноды.
 
 ## Задачи по приоритету
 
-### P0 — Ядро (без этого ничего не работает)
+### P0 — надёжность в проде
 
-- [ ] **1. Инициализация проекта**
-  - `bun init`, `tsconfig.json`, `package.json`
-  - Зависимости: `telegraf`
-  - `.env.example`
+- [x] **Бесконечный краш-луп на больших/длинных треках — исправлено.** При падении всего процесса
+      (OOM-kill/рестарт пода) джоба оставалась в `processing`, и на старте (`app-db.ts`) просто
+      сбрасывалась в `pending` без инкремента `retries` — обычный retry/backoff в
+      `process-download-job.ts` считает попытки только при исключении *внутри* процесса, не при его
+      смерти целиком. Итог — крах никогда не засчитывался как попытка: трек крашит процесс → рестарт →
+      джоба снова `pending` с тем же `retries` → берётся заново → крашит снова, без конца.
+      Фикс — `domain/queue.ts` (`MAX_RETRIES`/`backoffSeconds` вынесены как общие), новый
+      `infrastructure/workers/recover-stuck-jobs.ts` (вызывается из `main.ts` после создания
+      `notifier`, до старта поллера): застрявшие `processing`-джобы засчитывают крах как попытку;
+      если попытки исчерпаны — уходят в `failed` с `blockReason: "crashed_repeatedly"` и явным
+      уведомлением пользователю, а не возвращаются в очередь молча.
+- [ ] **Превентивный фильтр по длительности/размеру трека — ещё не начат.** Обсуждался отдельно:
+      `--match-filter "duration < N"` в yt-dlp (до старта скачивания, в отличие от текущей
+      post-download проверки на 50MB) — не даёт вообще начать качать трек, который потом всё равно
+      будет неприемлем. Юзер сейчас подбирает конкретный порог. Отдельный открытый вопрос по дизайну —
+      что делать с превышающими порог треками: сразу `failed`+уведомление, или отдельный флаг в
+      очереди (`download_later`) с ручным/плановым возвратом в обработку позже — решение не принято.
+- [ ] **Upload буферизует файл целиком в память → OOM на длинных треках.** На Pi реально ловили
+      `Memory cgroup out of memory` (лимит 300Mi) на длинных треках/плейлистах. Самый горячий пункт.
+      Подробности — `docs/backlog/2026-08-26_upload-buffers-full-file-oom.md`.
+- [ ] **Разделить "download" и "upload" на разные события очереди.** Сейчас один retry-цикл на оба шага —
+      если падает только аплоад в Telegram, трек перекачивается заново.
+      Подробности — `docs/backlog/2026-08-26_split-download-send-queue-events.md`.
+- [ ] **Изолировать сторы друг от друга в `process-download-job`.** Если падает канал (например, бот не
+      добавлен в чат), fs-архив тоже не сохраняется — хотя формально не должен зависеть от канала.
+      Подробности — `docs/backlog/2026-08-26_isolate-stores-process-download-job.md`.
+- [ ] **fs-only cache-hit не переиспользуется.** При `CACHE_TO_CHANNEL=false` повторный запрос того же
+      трека скачивает его заново вместо переиспользования файла на диске.
+      Подробности — `docs/backlog/2026-08-26_fs-only-cache-hit-no-deliver.md`.
+- [ ] **Быстрый отказ для DRM-треков.** Сейчас тратят все 3 retry (~3.5 мин) вместо мгновенного fail.
+      Подробности — `docs/backlog/2026-08-26_drm-tracks-fast-fail.md`.
 
-- [ ] **2. DB: schema + connection**
-  - `src/db/index.ts` — singleton `bun:sqlite`
-  - `src/db/schema.ts` — CREATE TABLE queue, tracks, users
+### P1 — инфраструктурные ошибки/задачи
 
-- [ ] **3. Config**
-  - `src/config.ts` — читать env, падать если обязательные не заданы
+- [ ] **Контейнеризовать telegram-прокси.** Сейчас SSH-туннель + privoxy — ручной стопгэп на хосте Pi,
+      не в GitOps. Целевая реализация — в репозитории `infrastructure`.
+      Подробности — `docs/backlog/2026-08-26_containerize-telegram-proxy.md`.
+- [ ] **Pi 3B+ не тянет control plane (k3s+Flux) одновременно с ботом — не устранено.** Root cause
+      (`infrastructure/docs/backlog/2026-08-26_pi3b-resource-starvation-flux-crashloop.md`): 955Mi RAM,
+      Flux-контроллеры уходят в непрерывный `CrashLoopBackOff`/I/O-wait, бот из-за этого зависает
+      (не крашится) и требует ручного ребута ноды. Повторилось 2026-08-27 уже без плейлист-триггера
+      (`infrastructure/docs/backlog/2026-08-27_pi-down-again-no-playlist-trigger.md`) — значит
+      `ALLOW_PLAYLIST_DOWNLOADS` не первопричина, а лишь убрал один из усугубляющих факторов.
+      Митигация уже есть (мониторинг `pi-resource-monitor.sh` + `/healthz`-liveness, см. «Статус» выше),
+      но сама нехватка ресурсов (resource limits Flux-контроллеров/разнесение по времени/апгрейд железа)
+      — решение и работа целиком в репозитории `infrastructure`, не в этом. Не блокирует код бота,
+      но объясняет периодическую недоступность в проде — держать в виду при разборе будущих "бот не отвечает".
 
-- [ ] **4. Bot: приём ссылок**
-  - `src/bot/handlers.ts` — onText с URL
-  - Регистрация пользователя в users
-  - Проверка кэша tracks → если есть, forward
-  - Если нет → добавить в queue, ответить "добавлено в очередь"
+### P2 — технический долг / мелкий рефакторинг
 
-- [ ] **5. Worker: базовый loop**
-  - `src/worker/index.ts` — setInterval каждые 5 сек
-  - Берёт одно pending задание, ставит status=processing
+- [ ] `extractUrl` не находит ссылку внутри произвольного текста сообщения (только если всё сообщение —
+      валидный URL). Подробности — `docs/backlog/2026-08-26_extract-url-inline-text.md`.
+- [ ] `blockReason` — общий словарь строк (`"geo"`/`"drm"`/`"too_large"`) без единого типа, риск опечатки.
+      Подробности — `docs/backlog/2026-08-26_blockreason-shared-type.md`.
+- [ ] Мусор в `queue` — `error`/`block_reason` не чистятся при успешном `done`, `track_id` не пишется
+      обратно в БД. Подробности — `docs/backlog/2026-08-26_queue-stale-error-track-id-cleanup.md`.
+- [ ] `error_log`-запись в обход репозитория — единственное место в `application/`, где код бьёт по
+      `Database` напрямую. Подробности — `docs/backlog/2026-08-26_error-log-write-bypasses-repository.md`.
+- [ ] `NotifierPort`/`TrackCachePort` пересекаются по ответственности (оба резолвят `jobId→chatId` и шлют
+      в Telegram) — не блокирует, пересмотреть при третьем похожем кейсе.
+      Подробности — `docs/backlog/2026-08-26_notifier-trackcache-overlap.md`.
+- [ ] `migrateLegacyDb` — без батчинга транзакций, на слабом железе (Pi + SD) может идти десятки минут.
+      Подробности — `docs/backlog/2026-08-26_migrate-legacy-db-no-batching.md`.
+- [ ] Drizzle вместо ручного `bun:sqlite` — сознательно отложено, путь миграции описан и остаётся открытым.
+      Подробности — `docs/backlog/2026-08-26_drizzle-migration-deferred.md`.
+- [ ] UX-тексты бота — юзер правит сам, не через агента.
+      Подробности — `docs/backlog/2026-08-26_bot-ux-text-cleanup.md`.
 
-- [ ] **6. Downloader: yt-dlp интеграция**
-  - `src/worker/downloader.ts`
-  - `getInfo(url)` — `--flat-playlist -J` → возвращает entries или одиночный трек
-  - `download(url, trackId)` — скачивает трек, возвращает путь к файлу + метадату
+## Фичи
 
-- [ ] **7. Worker: полный цикл**
-  - Разворачивание плейлиста → под-задания в queue
-  - Скачивание трека
-  - Отправка в канал через Telegraf
-  - Сохранение в tracks
-  - Forward пользователю
-  - Удаление временного файла
+- [ ] **Форвардить в канал исходное сообщение вместе с треком.** Сейчас в канал уходит только сам файл —
+      нужно вместе с ним форвардить (`ctx.telegram.forwardMessage`) исходное сообщение пользователя, чтобы
+      в канале сохранялся контекст «откуда» трек. Технически подтверждено — `forwardMessage` умеет
+      форвардить из личного чата с ботом в канал напрямую. Простая фича, не начата.
 
-- [ ] **8. main.ts**
-  - Запуск bot.launch() + worker loop параллельно
+## Сложные фичи (осознанно в конце очереди)
 
-### P1 — Важно, но после ядра
+- [ ] **Cookies для yt-dlp (SoundCloud-авторизация).** Часть треков не скачивается без залогиненной
+      сессии (yt-dlp issue #8390). Сложная фича (код + k8s Secret + операционный ре-экспорт), не начата.
+      Открытый вопрос: удобного способа экспортировать cookies с телефона не нашли (HttpOnly-куки требуют
+      браузерное расширение с `chrome.cookies` API — букмарклет/голый JS не сработает).
+      Подробности — `docs/backlog/2026-08-26_yt-dlp-soundcloud-cookies.md`. Пока не зафиксировано в
+      `docs/diagram.d2`/`docs/specs/types.md` — до момента, когда фича станет актуальна.
 
-- [ ] **9. Обработка ошибок**
-  - status=failed + сохранение error в queue
-  - Уведомление пользователя об ошибке
-  - Retry логика (max 3 попытки)
+## Хостинг / инфраструктура (done, для контекста)
 
-- [ ] **10. Уведомления о прогрессе**
-  - "Трек 3/12 из плейлиста загружен"
-  - Редактирование одного сообщения вместо спама
+- [x] Бот перенесён на домашний Raspberry Pi 3B+ + k3s (учебная цель заодно), задеплоен через GitOps и
+      отвечает в Telegram. Стабильность control plane (k3s+Flux) на этом железе — под вопросом, см. P1
+      выше. **GitOps-манифесты и вся дальнейшая работа по кластеру — в отдельном репозитории
+      `infrastructure`** (не здесь) — см. его `docs/k3s-flux-bootstrap.md`. Подключение — `ssh pi`.
+      Подробности по железу/сети — `docs/diary/2026-08-19_raspberry-pi-hosting.md`.
 
-- [ ] **11. Дедупликация в очереди**
-  - Не добавлять URL если уже есть pending/processing с тем же track_id
+## Открыто, решение отложено (не забыть)
 
-### P2 — Улучшения
-
-- [ ] **12. Команды бота**
-  - `/status` — что сейчас в очереди
-  - `/cancel` — отмена своих заданий
-
-- [ ] **13. Очистка временных файлов**
-  - Гарантированное удаление даже при ошибке (try/finally)
-
-- [ ] **14. Логирование**
-  - Структурированные логи с timestamp
-
-## Решения
-
-- Формат: аудио → mp3 (best quality), видео → mp4. Требует ffmpeg на сервере
-- Лимит Telegram 50MB — треки превышающие лимит пропускаются, пользователь получает уведомление с названием трека
-- Telegram sendAudio / sendVideo — используем для встроенного плеера в чате
-
-## Бэклог: фичи
-
-- [ ] **Cookies для yt-dlp (SoundCloud-авторизация)** — часть треков не скачивается
-      без залогиненной сессии (запрос format info возвращает "not found" целиком,
-      не превью; подтверждено yt-dlp issue #8390). Сложная фича (код + k8s Secret +
-      операционный ре-экспорт) — подробности, архитектура (`CookieRepository`,
-      `DownloaderPort` с опциональными куки) и открытый вопрос про удобный экспорт
-      с телефона — `docs/backlog/2026-08-26_yt-dlp-soundcloud-cookies.md`. Пока не зафиксировано в
-      `docs/diagram.d2`/`docs/specs/types.md`.
-
-- [ ] **Форвардить в канал изначальное сообщение вместе с треком**
-      Сейчас при кэшировании в канал уходит только сам трек (аудио/видео из yt-dlp).
-      Нужно вместе с ним форвардить (`ctx.telegram.forwardMessage`) и исходное
-      сообщение пользователя, из которого была взята ссылка на скачивание —
-      чтобы в канале сохранялся контекст («откуда» трек), а не только файл.
-      Технически возможность подтверждена: Bot API `forwardMessage` умеет
-      форвардить из личного чата с ботом в канал напрямую, без ограничений
-      (кроме `protect_content` на исходном сообщении, что для личных чатов
-      с ботом маловероятно).
-
-## Рефакторинг архитектуры (clean: domain / application / infra)
-
-- [x] Границы слоёв согласованы, финальная схема — `docs/diagram.d2`
-      (infrastructure → application → domain: presentation/telegram-bot,
-      adapters/yt-dlp, repository/{telegram,sqlite}, workers/queue-poller;
-      use-cases enqueue-download + process-download; domain interfaces/ports/repository)
-- [x] Список хендлеров бота согласован — `docs/specs/telegram-bot.md`
-      (handle-message, listen-channel, handle-channel-history как заглушка —
-      Bot API не даёт истории канала, нужен MTProto для полной реализации)
-- [x] Типы (`domain`/`infra/telegram`) прописаны черновиком — `docs/specs/types.md`
-      (Track, QueueItem, DownloadResult, порты, TelegramReplyRef, TelegramSendQueueItem)
-- [x] Рефакторинг каталогов под `domain/application/infra` — реализован и закоммичен
-      в отдельном worktree (`.claude/worktrees/agent-aab999315a92a7e92`, ветка
-      `worktree-agent-aab999315a92a7e92`, коммит `2000e4a`), **ещё не смёрджен** в
-      `refactor/architecture` — ждёт ручного прогона в боте. `TrackCachePort` дополнительно
-      расслоён на `TrackStorePort`(find/save, массив)/`TrackCachePort`(+deliver,
-      duck-typing), добавлен `fs-cache-adapter.ts` для `CONTENT_DIR`. Подробности —
-      `docs/diary/2026-08-22_clean-architecture-refactor.md`,
-      `docs/diary/2026-08-23_infra-restructure-plan.md` (структура, план, реализация,
-      архитектурная ревизия 2026-08-24)
-- [x] Реализация хендлеров бота по `docs/specs/telegram-bot.md` — сделана в том же
-      worktree (`infra/presentation/telegram-handlers.ts`), см. выше
-- [x] GitHub Actions работоспособны — токен `gh` был протух под неверным аккаунтом
-      (`kirill-ivanovvv` вместо `iwwwanow`), починили через `gh auth login`.
-      Последний прогон (коммит `3a52e73`) — success. Подробности там же
-
-## Хостинг / инфраструктура
-
-- [x] Перенести бота на домашний Raspberry Pi 3B+ + k3s (учебная цель заодно). **k3s и Flux подняты и стабильны**, бот задеплоен через GitOps и отвечает в Telegram (сессия 2026-08-23). **GitOps-манифесты и вся дальнейшая работа по кластеру — в отдельном репозитории `infrastructure`** (переименован из `infrastructure_pi`, `git@github.com:iwwwanow/infrastructure.git`), не здесь — см. его `docs/k3s-flux-bootstrap.md` (полный ран-бук) и дневники за подробностями. Подключение — `ssh pi` (mDNS-алиас, `~/.ssh/config.d/personal.conf`). Прокси для обхода блокировки Telegram API — см. `docs/backlog/2026-08-26_containerize-telegram-proxy.md` в этом репозитории (контейнеризация — TODO, сейчас стопгэп на хосте). Подробности по железу/сети (питание, разметка флешек, Wi-Fi) — `docs/diary/2026-08-19_raspberry-pi-hosting.md` в этом репозитории.
-- [x] `CACHE_TO_CHANNEL` / `SAVE_TO_CONTENT_DIR` — независимая опциональность обоих способов сохранения медиа, с валидацией «хотя бы один обязателен» — см. дневник выше
+- `users.username` — telegram-профильная деталь в generic-таблице `users`, нигде не читается обратно.
+  Кандидат на переезд в `infrastructure` (`telegram_users`) либо удаление. Решение отложено, не блокирует.
+- `docs/agents/planning.md`/`docs/agents/list.md`/`docs/agents/testing.md` живут в `docs/agents/`-вложенности,
+  что не совпадает с каноном из корневого `~/CLAUDE.md` (плоский `docs/`). Юзер решит сам, переносить ли.

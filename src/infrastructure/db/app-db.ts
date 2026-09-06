@@ -40,9 +40,6 @@ export function openAppDb(dataDir: string): Database {
 
   runAppMigrations(db);
 
-  // Reset jobs stuck in processing from a previous crashed run.
-  db.run(`UPDATE queue SET status = 'pending', retry_after = 0 WHERE status = 'processing'`);
-
   return db;
 }
 
