@@ -94,11 +94,20 @@ export function createYtDlpDownloader(): DownloaderPort {
         // item and a playlist (e.g. a YouTube video inside a playlist) — a pure-playlist
         // URL (e.g. a SoundCloud /sets/ album) is still expanded here regardless, and
         // this would silently download every entry in sequence. See incident 2026-08-26.
+        //
+        // Refused unconditionally, independent of ALLOW_PLAYLIST_DOWNLOADS: that flag only
+        // governs whether getInfo() fans a playlist out into individual per-track jobs.
+        // download() always downloads exactly one track and returns exactly one
+        // DownloadResult — it has no way to represent N files from one call, so letting
+        // a playlist object through here (as the old `&& !config.allowPlaylistDownloads`
+        // guard did) meant every entry after the first silently overwrote the previous
+        // one on disk (outputTemplate keyed on the aggregate's own id, not each entry's),
+        // and the DB ended up caching the wrong track's id/title/duration entirely.
         const isPlaylist = meta._type === "playlist" || Array.isArray(meta.entries);
-        if (isPlaylist && !config.allowPlaylistDownloads) {
+        if (isPlaylist) {
           return {
             ok: false,
-            error: `playlist download refused (ALLOW_PLAYLIST_DOWNLOADS=false) — ${url}`,
+            error: `playlist URL reached download() unexpectedly (should be fanned out by getInfo()) — ${url}`,
             retryable: false,
           };
         }
