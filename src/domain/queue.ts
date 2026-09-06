@@ -28,7 +28,12 @@ export interface QueueRepository {
   findPendingByTrackId(trackId: string): Promise<QueueItem | null>;
   claim(): Promise<QueueItem | null>;
   updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
-  requeueByBlockReason(reason: string, newStatus: QueueStatus): Promise<void>;
+  // staggerSeconds spaces out retry_after across the matched rows (0, staggerSeconds,
+  // 2*staggerSeconds, ...) instead of releasing them all as claimable at once — a
+  // startup-time backlog recovery (e.g. all geo-blocked jobs once PROXY is set)
+  // otherwise becomes an immediate burst of concurrent downloads right as the process
+  // comes up cold. Default 0 keeps existing unstaggered behavior.
+  requeueByBlockReason(reason: string, newStatus: QueueStatus, staggerSeconds?: number): Promise<void>;
   countByStatusForUser(userId: number): Promise<Record<string, number>>;
   // Jobs left in 'processing' by a run that died mid-download (OOM-kill, pod restart) —
   // never reached the in-process catch, so never got a chance to update their own status.

@@ -156,8 +156,14 @@ export function createYtDlpDownloader(): DownloaderPort {
 // requeue policy that depends on both PROXY and that specific string therefore lives
 // here too, not in domain/application (see docs/diary "geo_blocked не должен быть
 // литералом в generic queue.status").
+// Staggered by GEO_REQUEUE_STAGGER_SECONDS (backoffSeconds' own base interval) instead of
+// releasing the whole geo-blocked backlog as claimable in one instant — a large backlog
+// requeued all at once right at cold start is a plausible OOM amplifier alongside the
+// upload double-buffering fixed above (see docs/diary/2026-09-06_oom-restart-storm-research.md).
+const GEO_REQUEUE_STAGGER_SECONDS = 30;
+
 export async function requeueGeoBlockedIfProxyAvailable(queue: QueueRepository): Promise<void> {
   if (!config.proxy) return;
-  await queue.requeueByBlockReason("geo", "pending");
-  logger.info("requeued geo-blocked jobs for retry (proxy is set)");
+  await queue.requeueByBlockReason("geo", "pending", GEO_REQUEUE_STAGGER_SECONDS);
+  logger.info("requeued geo-blocked jobs for retry (proxy is set), staggered to avoid a cold-start burst");
 }

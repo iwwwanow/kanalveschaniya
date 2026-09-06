@@ -99,11 +99,13 @@ export function createQueueRepository(db: Database): QueueRepository {
       db.run(`UPDATE queue SET ${sets.join(", ")} WHERE id = ?`, values);
     },
 
-    async requeueByBlockReason(reason, newStatus) {
+    async requeueByBlockReason(reason, newStatus, staggerSeconds = 0) {
       db.run(
-        `UPDATE queue SET status = ?, retries = 0, retry_after = 0, error = NULL, block_reason = NULL
-         WHERE block_reason = ?`,
-        [newStatus, reason]
+        `UPDATE queue SET status = ?, retries = 0, error = NULL, block_reason = NULL,
+           retry_after = unixepoch() + ranked.rn * ?
+         FROM (SELECT id, (ROW_NUMBER() OVER (ORDER BY id) - 1) AS rn FROM queue WHERE block_reason = ?) AS ranked
+         WHERE queue.id = ranked.id`,
+        [newStatus, staggerSeconds, reason]
       );
     },
 
