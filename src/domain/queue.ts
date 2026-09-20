@@ -34,6 +34,8 @@ export interface QueueRepository {
   findPendingByUrl(url: string): Promise<QueueItem | null>;
   findPendingByResourceId(resourceId: string): Promise<QueueItem | null>;
   claim(): Promise<QueueItem | null>;
+  // Persist the id resolved via DownloaderPort.getInfo, so a retry skips that lookup.
+  setResourceId(id: number, resourceId: string): Promise<void>;
   updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
   // staggerSeconds spaces out retry_after across the matched rows (0, staggerSeconds,
   // 2*staggerSeconds, ...) instead of releasing them all as claimable at once — a

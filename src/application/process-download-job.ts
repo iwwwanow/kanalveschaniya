@@ -109,6 +109,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
 
       resourceId = info.resourceId;
       url = info.url;
+      await deps.queue.setResourceId(job.id, resourceId);
     }
 
     const hit = await findDeliverable(resourceId);
@@ -210,7 +211,8 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     try {
       const finalized = await runJob(job, log);
       if (!finalized) {
-        await deps.queue.updateStatus(job.id, QueueStatus.Done);
+        // a job that got here after failed attempts must not keep their error/block_reason
+        await deps.queue.updateStatus(job.id, QueueStatus.Done, { error: null, blockReason: null });
         log.info(`job ${job.id} | done`);
       }
     } catch (err) {

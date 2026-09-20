@@ -160,7 +160,7 @@ Telegram-бот для скачивания музыки/видео через y
       валидный URL). Подробности — `docs/backlog/2026-08-26_extract-url-inline-text.md`.
 - [x] `blockReason` — общий словарь строк (`"geo"`/`"drm"`/`"too_large"`) без единого типа, риск опечатки.
       Подробности — `docs/backlog/2026-08-26_blockreason-shared-type.md`. **→ вошло в «Рефакторинг слоёв», шаг 1.**
-- [ ] Мусор в `queue` — `error`/`block_reason` не чистятся при успешном `done`, `track_id` не пишется
+- [x] Мусор в `queue` (**сделано 2026-09-20**) — `error`/`block_reason` не чистятся при успешном `done`, `track_id` не пишется
       обратно в БД. Подробности — `docs/backlog/2026-08-26_queue-stale-error-track-id-cleanup.md`.
 - [x] `error_log`-запись в обход репозитория — единственное место в `application/`, где код бьёт по
       `Database` напрямую. Подробности — `docs/backlog/2026-08-26_error-log-write-bypasses-repository.md`.

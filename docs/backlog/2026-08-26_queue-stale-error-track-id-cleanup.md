@@ -8,3 +8,5 @@
 Fix — при успешном `done` явно чистить `error`/`block_reason` (`patch: { error: null, blockReason: null }`); при первом резолве `trackId` — сразу писать его в `queue.track_id` (добавить `trackId` в `Partial<QueueItem>` для `updateStatus`, звать сразу после `getInfo()` в `runJob`).
 
 Важно: это НЕ причина повторного полного скачивания трека при ретрае (см. "Разделить скачивание и отправку") — та проблема из-за того, что при первом падении ни один стор не успел сохранить трек целиком, `findDeliverable` ищет по `resource`/`telegram_track_refs`, а не по `queue.track_id`. Этот пункт — только про мусор в самой строке `queue` и лишний `getInfo()`-вызов.
+
+**Сделано (2026-09-20):** при `done` `error`/`block_reason` сбрасываются; `resource_id` пишется в `queue` сразу после `getInfo()` (`QueueRepository.setResourceId`), ретрай его не запрашивает заново. Тесты — `tests/process-download-job.test.ts`.

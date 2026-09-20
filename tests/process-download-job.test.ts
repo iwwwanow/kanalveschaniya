@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "fs";
 import { BlockReason } from "../src/domain/block-reason";
-import { MB, rig } from "./helpers";
+import { MB, makeFile, resource, rig, tmpDir } from "./helpers";
 
 describe("processDownloadJob: outcomes", () => {
   test("file over the limit -> failed, block_reason=too_large, error_log entry, user notified, nothing stored", async () => {
@@ -108,5 +108,40 @@ describe("processDownloadJob: stores are isolated from each other", () => {
     expect(row.status).toBe("done");
     expect(r.notes).toHaveLength(1);
     expect(errorLogCount(r)).toBe(1);
+  });
+});
+
+describe("processDownloadJob: queue row hygiene", () => {
+  test("a job that succeeds after a failed attempt ends with error and block_reason cleared", async () => {
+    const dir = tmpDir();
+    let attempt = 0;
+    const r = rig({
+      download: async () => {
+        attempt++;
+        if (attempt === 1) return { ok: false, error: "network timeout", retryable: true };
+        return { ok: true, resource, filePath: makeFile(dir, 10) };
+      },
+    });
+
+    const first = await r.runOnce();
+    expect(first.error).toBe("network timeout");
+
+    r.db.run("UPDATE queue SET retry_after = 0");
+    const second = await r.processNext();
+    expect(second.status).toBe("done");
+    expect(second.error).toBeNull();
+    expect(second.block_reason).toBeNull();
+  });
+
+  test("resource_id is stored right after getInfo, so a retry does not look it up again", async () => {
+    const r = rig({ download: async () => ({ ok: false, error: "network timeout", retryable: true }) });
+    const first = await r.runOnce();
+
+    expect(first.resource_id).toBe(resource.resourceId);
+    expect(r.infoCalls()).toBe(1);
+
+    r.db.run("UPDATE queue SET retry_after = 0");
+    await r.processNext();
+    expect(r.infoCalls()).toBe(1); // second attempt reused job.resourceId
   });
 });

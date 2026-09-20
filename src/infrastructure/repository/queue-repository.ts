@@ -73,6 +73,10 @@ export function createQueueRepository(db: Database): QueueRepository {
       return toQueueItem({ ...row, status: QueueStatus.Processing });
     },
 
+    async setResourceId(id, resourceId) {
+      db.run(`UPDATE queue SET resource_id = ? WHERE id = ?`, [resourceId, id]);
+    },
+
     async updateStatus(id, status, patch) {
       const sets: string[] = ["status = ?"];
       const values: Array<string | number | null> = [status];

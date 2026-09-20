@@ -51,6 +51,7 @@ export function rig(opts: RigOptions = {}) {
   const calls: string[] = [];
   const notes: DownloadResult[] = [];
   const files: string[] = [];
+  let infoCalls = 0;
 
   const cache: ResourceCachePort = {
     name: "cache",
@@ -73,7 +74,10 @@ export function rig(opts: RigOptions = {}) {
     },
   };
   const downloader: DownloaderPort = {
-    getInfo: async () => resource,
+    getInfo: async () => {
+      infoCalls++;
+      return resource;
+    },
     download:
       opts.download ??
       (async () => {
@@ -101,19 +105,30 @@ export function rig(opts: RigOptions = {}) {
     registerPlaylistEntryOrigin: async () => {},
   });
 
-  // Enqueues a job, claims it, runs it once, returns the resulting queue row.
-  async function runOnce(retries = 0) {
-    const id = await queue.enqueue({ url: `http://x/${Math.random()}`, userId: 1 });
-    db.run("UPDATE queue SET retries = ? WHERE id = ?", [retries, id]);
+  type Row = {
+    status: string;
+    retries: number;
+    retry_after: number | null;
+    error: string | null;
+    block_reason: string | null;
+    resource_id: string | null;
+  };
+
+  // Claims the next claimable job, runs it once, returns its queue row.
+  async function processNext(): Promise<Row> {
     const job = (await queue.claim())!;
     await process(job, noopLog);
     return db
-      .query<
-        { status: string; retries: number; retry_after: number | null; error: string | null; block_reason: string | null },
-        [number]
-      >("SELECT status, retries, retry_after, error, block_reason FROM queue WHERE id = ?")
-      .get(id)!;
+      .query<Row, [number]>("SELECT status, retries, retry_after, error, block_reason, resource_id FROM queue WHERE id = ?")
+      .get(job.id)!;
   }
 
-  return { db, dir, queue, calls, notes, files, runOnce };
+  // Enqueues a fresh job (optionally with `retries` already spent), then processes it once.
+  async function runOnce(retries = 0): Promise<Row> {
+    const id = await queue.enqueue({ url: `http://x/${Math.random()}`, userId: 1 });
+    db.run("UPDATE queue SET retries = ? WHERE id = ?", [retries, id]);
+    return processNext();
+  }
+
+  return { db, dir, queue, calls, notes, files, runOnce, processNext, infoCalls: () => infoCalls };
 }
