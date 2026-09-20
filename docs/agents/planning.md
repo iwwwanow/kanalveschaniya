@@ -144,8 +144,8 @@ Telegram-бот для скачивания музыки/видео через y
       в Telegram) — не блокирует, пересмотреть при третьем похожем кейсе.
       Подробности — `docs/backlog/2026-08-26_notifier-trackcache-overlap.md`. Частично затрагивается шагом 5
       «Рефакторинга слоёв» (`DeliveryPort` вместо `TrackCachePort`).
-- [ ] `migrateLegacyDb` — без батчинга транзакций, на слабом железе (Pi + SD) может идти десятки минут.
-      Подробности — `docs/backlog/2026-08-26_migrate-legacy-db-no-batching.md`.
+- [x] `migrateLegacyDb` — без батчинга транзакций. **Снято 2026-09-20: миграция удалена** (прод давно на
+      `app.db`, код в git-истории, тег `v2.0.3`). Подробности — `docs/backlog/2026-08-26_migrate-legacy-db-no-batching.md`.
 - [ ] Drizzle вместо ручного `bun:sqlite` — сознательно отложено, путь миграции описан и остаётся открытым.
       Подробности — `docs/backlog/2026-08-26_drizzle-migration-deferred.md`.
 - [ ] UX-тексты бота — юзер правит сам, не через агента.

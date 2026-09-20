@@ -1,10 +1,9 @@
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync } from "fs";
 import { join } from "path";
 import { logger } from "./logger";
 import { config } from "./config";
 import { openAppDb } from "./infrastructure/db/app-db";
 import { openTelegramDb } from "./infrastructure/db/telegram-db";
-import { migrateLegacyDb } from "./infrastructure/db/migrate-legacy";
 import { createQueueRepository } from "./infrastructure/repository/queue-repository";
 import { createErrorLogRepository } from "./infrastructure/repository/error-log-repository";
 import { createResourceRepository } from "./infrastructure/repository/resource-repository";
@@ -26,19 +25,13 @@ import { createBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePoller } from "./infrastructure/workers/queue-poller";
 
-// DATA_DIR handling preserved as-is (read directly, not via config.ts) — now resolves
-// app.db + telegram.db + a possible legacy bot.db in the same directory.
+// DATA_DIR handling preserved as-is (read directly, not via config.ts) — resolves
+// app.db + telegram.db.
 const dataDir = process.env.DATA_DIR ?? join(import.meta.dir, "../data");
 mkdirSync(dataDir, { recursive: true });
 
-// Must be checked BEFORE openAppDb() — bun:sqlite creates the file on open with
-// {create:true}, so checking after opening would always report "already existed".
-const appDbAlreadyExisted = existsSync(join(dataDir, "app.db"));
-
 const appDb = openAppDb(dataDir);
 const telegramDb = openTelegramDb(dataDir);
-
-migrateLegacyDb({ dataDir, appDb, telegramDb, appDbAlreadyExisted });
 
 const queueRepo = createQueueRepository(appDb);
 const resourceRepo = createResourceRepository(appDb);
