@@ -13,3 +13,5 @@
 похожий случай ("ну тут же уже есть один raw-SQL") добавится проще, чем через порт.
 Если захочется закрыть — `ErrorLogRepository` с одним методом `log(jobId, url, error)`,
 пара строк.
+
+**Сделано (2026-09-20):** `ErrorLogRepository` (`domain/error-log.ts`, метод `add`) + `infrastructure/repository/error-log-repository.ts`; `appDb` убран из `ProcessDownloadJobDeps`.

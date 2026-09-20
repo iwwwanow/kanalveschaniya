@@ -48,23 +48,26 @@ Telegram-бот для скачивания музыки/видео через y
       репозиторий рядом с `reply_refs`/`track_refs`; `telegramDb` уходит из `TelegramHandlersDeps`.
       Use-case не нужен — `users` это telegram-понятие, не домен. Связано с открытым вопросом про
       `users.username` (см. «Открыто» ниже).
-- [ ] **5. `DeliveryPort` вместо duck-typing (`isTrackCachePort`).** `DeliveryPort { deliver(track, jobId) }`
+- [x] **5. `DeliveryPort` вместо duck-typing (`isTrackCachePort`).** `DeliveryPort { deliver(track, jobId) }`
       реализует `telegram-channel-cache` вместе с `TrackStorePort`; application получает его отдельным
       параметром.
-- [ ] **6. `recover-stuck-jobs` → use-case в application.** Новых сущностей не требует (нужны только
+- [x] **6. `recover-stuck-jobs` → use-case в application.** Новых сущностей не требует (нужны только
       `QueueRepository`, `NotifierPort`, `DownloadResult`, `MAX_RETRIES`/`backoffSeconds`,
       `BlockReason.CrashedRepeatedly`); вместо глобального `logger` — `WorkerLog`. Зависит от шага 1.
-- [ ] **7. Geo-requeue из `yt-dlp.ts` → use-case `requeueBlockedJobs({ reason, staggerSeconds })`.**
+- [x] **7. Geo-requeue из `yt-dlp.ts` → use-case `requeueBlockedJobs({ reason, staggerSeconds })`.**
       Условие «PROXY задан» остаётся в `main.ts` (конфигурация). Адаптер загрузчика не должен управлять
       очередью. Зависит от шага 1.
-- [ ] **8. `telegram-send-media` → `infrastructure/adapters/telegram-client/`.** Общий хелпер двух адаптеров
+- [x] **8. `telegram-send-media` → `infrastructure/adapters/telegram-client/`.** Общий хелпер двух адаптеров
       (`channel-cache`, `notifier`), порт не реализует — в диаграмме отдельным узлом вне `adapters`.
-- [ ] **9. Переименование Track → Resource в коде** (~169 вхождений в 21 файле): `Track`, `TrackStorePort`,
+- [x] **9. Переименование Track → Resource в коде** (~169 вхождений в 21 файле): `Track`, `TrackStorePort`,
       `TrackCachePort`/`DeliveryPort`, `trackId`, `track-cache.ts`, `telegram-track-refs*`. Крупное, отдельным
       заходом, после шагов 1–8.
+- [x] **B. Удалён `migrate-legacy`** (одноразовая миграция `bot.db` → `app.db`, на проде давно no-op; код в git-истории, тег `v2.0.3`).
+- [x] **A. `too_large`**: теперь `failed` + `blockReason=too_large` (раньше `done` без причины).
+- [x] **Доки синхронизированы:** `CLAUDE.md` (структура, БД, env, без `geo_blocked`), `docs/specs/types.md` (Resource, enum'ы, `DeliveryPort`).
 - [ ] **10. (решение) Переименовывать ли колонки БД** (`queue.track_id`, `telegram_track_refs.track_id`) —
       требует миграции на боевых данных. Пока не решено; вариант «оставить как исторический артефакт схемы».
-- [ ] **11. Диаграммы.** Обновить `core.d2` (`vars.d2-config.layout-engine`, `direction`, убрать/пометить
+- [x] **11. Диаграммы.** Обновить `core.d2` (`vars.d2-config.layout-engine`, `direction`, убрать/пометить
       `telegram_send_queue`, реальные имена узлов, `telegram-notifier`, `recover-stuck-jobs`, `health-server`,
       `db`, `main` как composition root) и написать `docs/diagrams/infrastructure.d2` (три шва Telegram:
       вход, выход, хранилище/доставка). Делать после шагов 1–8 — чтобы не рисовать протечки, которые убираем.
@@ -72,10 +75,11 @@ Telegram-бот для скачивания музыки/видео через y
 
 ### Открытые вопросы
 
-- `too_large` сейчас только уведомляет и `return false` — `blockReason` в `queue` не пишется. Так и
-  задумано, или причину нужно сохранять в задаче?
-- `CLAUDE.md` проекта описывает статус `geo_blocked`, которого в коде нет (гео — это `blockReason`);
-  поправить при закрытии шага 1.
+- Шаг 10 (колонки БД `track_id` → `resource_id`): решает пользователь — миграция на боевых данных Pi,
+  откат на старый образ станет несовместим со схемой. Пока `track_id` в схеме — исторический артефакт
+  (см. `CLAUDE.md`, «Database»).
+- Закрыто 2026-09-20: `too_large` сохраняет `blockReason` (статус `failed`); `CLAUDE.md` синхронизирован
+  с кодом (`geo_blocked` убран, структура папок и env-переменные обновлены).
 
 ## Задачи по приоритету
 
@@ -133,11 +137,11 @@ Telegram-бот для скачивания музыки/видео через y
 
 - [ ] `extractUrl` не находит ссылку внутри произвольного текста сообщения (только если всё сообщение —
       валидный URL). Подробности — `docs/backlog/2026-08-26_extract-url-inline-text.md`.
-- [ ] `blockReason` — общий словарь строк (`"geo"`/`"drm"`/`"too_large"`) без единого типа, риск опечатки.
+- [x] `blockReason` — общий словарь строк (`"geo"`/`"drm"`/`"too_large"`) без единого типа, риск опечатки.
       Подробности — `docs/backlog/2026-08-26_blockreason-shared-type.md`. **→ вошло в «Рефакторинг слоёв», шаг 1.**
 - [ ] Мусор в `queue` — `error`/`block_reason` не чистятся при успешном `done`, `track_id` не пишется
       обратно в БД. Подробности — `docs/backlog/2026-08-26_queue-stale-error-track-id-cleanup.md`.
-- [ ] `error_log`-запись в обход репозитория — единственное место в `application/`, где код бьёт по
+- [x] `error_log`-запись в обход репозитория — единственное место в `application/`, где код бьёт по
       `Database` напрямую. Подробности — `docs/backlog/2026-08-26_error-log-write-bypasses-repository.md`.
       **→ вошло в «Рефакторинг слоёв», шаг 2.**
 - [ ] `NotifierPort`/`TrackCachePort` пересекаются по ответственности (оба резолвят `jobId→chatId` и шлют

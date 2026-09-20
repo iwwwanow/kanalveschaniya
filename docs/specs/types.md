@@ -1,9 +1,8 @@
 # Типы — domain и infra/telegram
 
-Черновик типов (код, но без логики) для clean-архитектуры (`domain`/`application`/`infra`,
-см. `docs/diagram.d2` и `docs/diary/2026-08-22_clean-architecture-refactor.md`). Пока
-только спецификация — при рефакторинге каталогов переносится как есть в
-`src/domain/types.ts` и `src/infra/telegram/types.ts`.
+Типы и порты clean-архитектуры (`domain`/`application`/`infra`,
+см. `docs/diagrams/core.d2` и `docs/diary/2026-08-22_clean-architecture-refactor.md`). Актуальный код — `src/domain/*.ts` (обновлено
+2026-09-20: `Resource` → `Resource`, enum'ы `QueueStatus`/`BlockReason`, `DeliveryPort`).
 
 ## `domain/types.ts`
 
@@ -11,9 +10,12 @@
 domain-порты. Никакой telegram- или yt-dlp-специфики здесь быть не должно.
 
 ```ts
-// interfaces
-type Track = {
-  trackId: string;
+// entities
+enum QueueStatus { Pending = "pending", Processing = "processing", Done = "done", Failed = "failed" }
+enum BlockReason { Geo = "geo", Drm = "drm", TooLarge = "too_large", CrashedRepeatedly = "crashed_repeatedly" }
+
+type Resource = {
+  resourceId: string;
   url: string;
   title: string;
   duration: number;
@@ -22,63 +24,77 @@ type Track = {
 type QueueItem = {
   id: number;
   url: string;
-  trackId: string | null; // null до разворачивания плейлиста
+  resourceId: string | null; // null до разворачивания плейлиста
   userId: number;
-  status: "pending" | "processing" | "done" | "failed";
+  status: QueueStatus;
   error: string | null;
-  blockReason: string | null; // opaque для domain/application, см. секцию ниже
+  blockReason: BlockReason | null;
+  retries: number;
+  retryAfter: number | null;
   createdAt: number;
 };
 
 type DownloadResult =
-  | { ok: true; track: Track; filePath: string }
-  | { ok: false; error: string; blockReason?: string; retryable: boolean };
+  | { ok: true; resource: Resource; filePath: string }
+  | { ok: false; error: string; blockReason?: BlockReason; retryable: boolean };
 
 // ports
 interface DownloaderPort {
-  getInfo(url: string): Promise<{ entries: Track[] } | Track>;
+  getInfo(url: string): Promise<{ entries: Resource[] } | Resource>;
   download(url: string): Promise<DownloadResult>;
 }
 
 interface NotifierPort {
   notify(jobId: number, result: DownloadResult): Promise<void>;
+  notifyPlaylistQueued(jobId: number, summary: { queued: number; cached: number }): Promise<void>;
 }
 
-// Найти/сохранить трек в конкретном backend'е кэша. Не Repository — save() делегирует
+// Найти/сохранить ресурс в конкретном backend'е. Не Repository — save() делегирует
 // внешнему механизму хранения, а не просто пишет CRUD-запись (см. секцию ниже). Может
-// быть несколько реализаций одновременно — application фанаутит find/save по массиву.
-interface TrackStorePort {
-  find(trackId: string): Promise<Track | null>;
-  save(track: Track, filePath: string): Promise<void>;
+// быть несколько реализаций одновременно.
+interface ResourceStorePort {
+  readonly name: string;
+  find(resourceId: string): Promise<Resource | null>;
+  save(resource: Resource, filePath: string): Promise<void>;
 }
 
-// TrackStorePort, который вдобавок умеет раздать уже сохранённый трек пользователю через
-// свой backend. Используется как единственный экземпляр (НЕ через TrackStorePort[]-массив) —
-// deliver принципиально не обобщается на произвольный store, см. секцию ниже.
-interface TrackCachePort extends TrackStorePort {
-  deliver(track: Track, jobId: number): Promise<void>; // opaque jobId, НЕ chatId/messageId —
-                                                          // реализация сама резолвит адрес,
-                                                          // как это уже делает NotifierPort
+// Раздать уже сохранённый ресурс пользователю. Не обобщается на произвольный store —
+// см. секцию ниже. opaque jobId, НЕ chatId/messageId — реализация сама резолвит адрес.
+interface DeliveryPort {
+  deliver(resource: Resource, jobId: number): Promise<void>;
 }
 
+// Стор, который умеет и хранить, и раздавать. application получает такие сторы
+// отдельным списком `caches`, сторы только для хранения — списком `archives`.
+interface ResourceCachePort extends ResourceStorePort, DeliveryPort {}
+
+// repositories
 interface QueueRepository {
-  enqueue(item: Pick<QueueItem, "url" | "userId">): Promise<number>;
+  enqueue(item: Pick<QueueItem, "url" | "userId"> & Partial<Pick<QueueItem, "resourceId">>): Promise<number>;
+  findPendingByUrl(url: string): Promise<QueueItem | null>;
+  findPendingByResourceId(resourceId: string): Promise<QueueItem | null>;
   claim(): Promise<QueueItem | null>;
-  updateStatus(id: number, status: QueueItem["status"], patch?: Partial<QueueItem>): Promise<void>;
-  requeueByBlockReason(reason: string, newStatus: QueueItem["status"]): Promise<void>;
+  updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
+  requeueByBlockReason(reason: BlockReason, newStatus: QueueStatus, staggerSeconds?: number): Promise<void>;
+  countByStatusForUser(userId: number): Promise<Record<string, number>>;
+  findStuckProcessing(): Promise<QueueItem[]>;
 }
 
 interface ResourceRepository {
-  findByTrackId(trackId: string): Promise<Track | null>;
-  save(track: Track): Promise<void>;
+  findByResourceId(resourceId: string): Promise<Resource | null>;
+  save(resource: Resource): Promise<void>;
+}
+
+interface ErrorLogRepository {
+  add(jobId: number, url: string, error: string): Promise<void>;
 }
 ```
 
-### `TrackCachePort` — почему порт, а не репозиторий
+### `ResourceCachePort` — почему порт, а не репозиторий
 
 `*Repository` (`QueueRepository`, `ResourceRepository`) — технология-агностичное хранение
 доменных данных (CRUD по ключу, неважно sqlite это или postgres). `*Port`
-(`DownloaderPort`, `NotifierPort`, `TrackStorePort`/`TrackCachePort`) — пересечение
+(`DownloaderPort`, `NotifierPort`, `ResourceStorePort`/`ResourceCachePort`) — пересечение
 границы с внешней системой, где происходит больше, чем «сохранить/прочитать» (скачать
 файл процессом, отправить сообщение, раздать файл через канал доставки). `save()` раздаёт
 файл через конкретный механизм (Telegram-канал), а не просто хранит метаданные — поэтому
@@ -86,12 +102,12 @@ Port, не Repository. Реализация (`infra/telegram/channel-cache`) м�
 называться как угодно, хоть `TelegramChannelRepo` — на имя порта в domain это не влияет,
 там имя остаётся технологически нейтральным.
 
-### `TrackStorePort` vs `TrackCachePort` — почему `deliver` не в общем порту
+### `ResourceStorePort` vs `ResourceCachePort` — почему `deliver` не в общем порту
 
 Обнаружено в сессии 2026-08-24 при проектировании fs-адаптера для `CONTENT_DIR` (сейчас
 эта логика — инлайновый `fs`-код прямо в `application/process-download-job.ts`, находка
 аудита, см. `docs/diary/2026-08-23_infra-restructure-plan.md`, секция «Ревизия —
-2026-08-24»). Идея — сделать fs-версию `TrackCachePort`, чтобы application фанаутил
+2026-08-24»). Идея — сделать fs-версию `ResourceCachePort`, чтобы application фанаутил
 `find`/`save` по массиву реализаций вместо инлайнового кода.
 
 `deliver(track, jobId)` в эту идею **не укладывается**: она физически завязана на
@@ -102,13 +118,13 @@ Telegram-специфичные данные (`telegram_track_refs`/`channelId` 
 реализациях).
 
 Поэтому порт расслоён:
-- `TrackStorePort` (`find`/`save`) — generic, может быть несколько реализаций одновременно.
+- `ResourceStorePort` (`find`/`save`) — generic, может быть несколько реализаций одновременно.
 - `DeliveryPort` (`deliver`) — отдельный контракт, telegram-специфичный по смыслу.
-- `TrackCachePort extends TrackStorePort, DeliveryPort` — стор, который умеет и хранить, и
+- `ResourceCachePort extends ResourceStorePort, DeliveryPort` — стор, который умеет и хранить, и
   раздавать (сейчас — только telegram-канал).
 
-Application получает сторы двумя **типизированными** списками: `caches: TrackCachePort[]`
-(источник cache-hit и доставки) и `archives: TrackStorePort[]` (только `save`, например fs);
+Application получает сторы двумя **типизированными** списками: `caches: ResourceCachePort[]`
+(источник cache-hit и доставки) и `archives: ResourceStorePort[]` (только `save`, например fs);
 раскладывает их `main.ts`. `deliver()` нельзя отделить от стора, где `find()` нашёл трек, —
 поэтому не отдельный параметр `DeliveryPort`, а отдельный список сторов.
 
@@ -117,12 +133,12 @@ Application получает сторы двумя **типизированны�
 > Минус — неявный контракт: стор без `deliver` молча выпадал из доставки, компилятор не
 > ловил. Порядок save→deliver для telegram и затем save для fs остался прежним.
 
-Реализовано (не только спроектировано) — `fs-cache-adapter.ts` (`TrackStorePort`,
-сохраняет в `content/{mp3,mp4}/{sanitizeTitle(title)}_{trackId}.{ext}` — человекочитаемое
-имя + trackId в суффиксе; `find()` сканирует директорию через `readdir` и матчит по
-суффиксу `_{trackId}.{ext}`, без отдельного индекса path-по-track_id) вынес прежний
+Реализовано (не только спроектировано) — `fs-cache-adapter.ts` (`ResourceStorePort`,
+сохраняет в `content/{mp3,mp4}/{sanitizeTitle(title)}_{resourceId}.{ext}` — человекочитаемое
+имя + resourceId в суффиксе; `find()` сканирует директорию через `readdir` и матчит по
+суффиксу `_{resourceId}.{ext}`, без отдельного индекса path-по-track_id) вынес прежний
 инлайновый `fs`-код из `application/process-download-job.ts`. Cache-hit-проверка в
-application — `findDeliverable(trackId)`: чистый lookup (не отправляет ничего сам),
+application — `findDeliverable(resourceId)`: чистый lookup (не отправляет ничего сам),
 вызывающий код явным отдельным вызовом делает `store.deliver(track, jobId)`.
 `telegram-channel-cache.ts` не менялся по сути — как реализовывал все три метода, так и
 реализовывает; один объект просто удовлетворяет обоим интерфейсам (TS structural typing).
@@ -142,20 +158,29 @@ telegram-специфичные данные протекли бы в сигна
 делает реализация `NotifierPort`.
 
 Заодно замечено пересечение ответственности: `NotifierPort.notify()` и
-`TrackCachePort.deliver()` оба резолвят `jobId → chatId` через `telegram_reply_refs` и оба
+`ResourceCachePort.deliver()` оба резолвят `jobId → chatId` через `telegram_reply_refs` и оба
 шлют что-то пользователю через Telegram Bot API — но не полный дубль (`notify` шлёт
 свежескачанные байты через `sendMedia`, `deliver` форвардит уже существующее сообщение из
 канала через `forwardMessage`). Решено **не трогать** — см. диари, там же открытый вопрос
 про fs-only cache-hit (нет `deliver`, нужен будет fallback через `NotifierPort`).
 
-### `blockReason` — opaque-поле
+### `blockReason` — enum в domain
 
-`queue.status` остаётся строго generic (`pending | processing | done | failed`) —
-никаких специфичных для источника значений вроде `geo_blocked`. Причина блокировки —
-`blockReason: string | null`, который domain/application **не интерпретируют**, только
-хранят и передают. Значение (например `'geo'`) придумывает и присваивает
-`infra/downloader/yt-dlp`. Подробное обоснование — диари, секция
-«geo_blocked не должен быть литералом в generic queue.status».
+`queue.status` остаётся строго generic (`pending | processing | done | failed`) — никаких
+специфичных для источника значений вроде `geo_blocked`. Причина, по которой задача остановлена
+навсегда, — `BlockReason` (`geo | drm | too_large | crashed_repeatedly`), enum в
+`domain/block-reason.ts`. Значения в БД — те же строки, что и раньше (`queue.block_reason`).
+
+> Пересмотрено 2026-09-20: раньше `blockReason` был `string | null`, который
+> domain/application «не интерпретируют», а значение придумывал `infra/downloader/yt-dlp`
+> (см. диари, «geo_blocked не должен быть литералом в generic queue.status»). Опечатки в
+> строках не ловились компилятором, а application всё равно сам писал `"too_large"` и
+> `"crashed_repeatedly"`. Общий enum убрал это; `queue.status` от этого не стал
+> специфичным — причина по-прежнему отдельное поле.
+
+Читая значение из БД, репозиторий приводит строку через `parseBlockReason` (неизвестное → `null`).
+Пользовательский текст на каждую причину — `Record<BlockReason, …>` в `telegram-notifier`
+(добавление причины без текста не компилируется).
 
 ## `infra/telegram/types.ts`
 
@@ -163,7 +188,7 @@ telegram-специфичные данные протекли бы в сигна
 
 ```ts
 // Единственный тип адреса для ответа юзеру — используется и presentation-хендлерами
-// (handle-message, listen-channel), и реализацией NotifierPort/TrackCachePort. Отдельного
+// (handle-message, listen-channel), и реализацией NotifierPort/ResourceCachePort. Отдельного
 // типа "ReplyTarget" не заводим — это была бы та же структура под другим именем.
 type TelegramReplyRef = {
   jobId: number;
@@ -171,9 +196,9 @@ type TelegramReplyRef = {
   messageId: number;
 };
 
-// track_id → где лежит уже закэшированный файл в канале. Backing store для TrackCachePort.
+// track_id → где лежит уже закэшированный файл в канале. Backing store для ResourceCachePort.
 type TelegramTrackRef = {
-  trackId: string;
+  resourceId: string;
   channelMessageId: number;
 };
 
@@ -195,7 +220,7 @@ type TelegramSendQueueItem = {
 
 - [ ] Перенести эти объявления в реальный код (`src/domain/types.ts`,
       `src/infra/telegram/types.ts`) при рефакторинге каталогов
-- [ ] `QueueRepository`/`ResourceRepository`/`DownloaderPort`/`NotifierPort`/`TrackCachePort` —
+- [ ] `QueueRepository`/`ResourceRepository`/`DownloaderPort`/`NotifierPort`/`ResourceCachePort` —
       только сигнатуры, реализации ещё не начаты
 - [ ] `telegram_send_queue` — таблица и `infra/telegram/workers/send-queue-poller.ts`
       спроектированы, не реализованы (см. диари)

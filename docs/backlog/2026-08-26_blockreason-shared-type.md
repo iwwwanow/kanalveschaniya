@@ -22,3 +22,5 @@
 в `infra/adapters/` или отдельным shared-файлом типов для инфры) и использовать его во
 всех трёх местах вместо голого `string`. Дёшево, не меняет поведение, снимает риск молчаливого
 рассинхрона. Не блокирует — сейчас все три строки совпадают.
+
+**Сделано (2026-09-20):** `BlockReason` — enum в `domain/block-reason.ts` (`geo | drm | too_large | crashed_repeatedly`), используется в `DownloadResult`, `QueueItem`, notifier и use-case'ах. Вопреки идее выше он лежит в domain, а не в infra: application сам пишет `too_large`/`crashed_repeatedly`.
