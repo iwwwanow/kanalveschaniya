@@ -50,6 +50,7 @@ export function rig(opts: RigOptions = {}) {
   const queue = createQueueRepository(db);
   const calls: string[] = [];
   const notes: DownloadResult[] = [];
+  const files: string[] = [];
 
   const cache: ResourceCachePort = {
     name: "cache",
@@ -77,7 +78,9 @@ export function rig(opts: RigOptions = {}) {
       opts.download ??
       (async () => {
         calls.push("download");
-        return { ok: true, resource, filePath: makeFile(dir, opts.size ?? 10) };
+        const filePath = makeFile(dir, opts.size ?? 10);
+        files.push(filePath);
+        return { ok: true, resource, filePath };
       }),
   };
   const notifier: NotifierPort = {
@@ -112,5 +115,5 @@ export function rig(opts: RigOptions = {}) {
       .get(id)!;
   }
 
-  return { db, dir, queue, calls, notes, runOnce };
+  return { db, dir, queue, calls, notes, files, runOnce };
 }

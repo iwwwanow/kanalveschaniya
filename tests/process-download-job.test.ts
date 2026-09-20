@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync } from "fs";
 import { BlockReason } from "../src/domain/block-reason";
 import { MB, rig } from "./helpers";
 
@@ -74,3 +75,38 @@ describe("processDownloadJob: retryable failures", () => {
   });
 });
 
+
+describe("processDownloadJob: stores are isolated from each other", () => {
+  const errorLogCount = (r: ReturnType<typeof rig>) =>
+    r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM error_log").get()!.c;
+
+  test("cache save fails -> the archive is still saved, the job is retried, the temp file is removed", async () => {
+    const r = rig({ cacheSave: async () => { throw new Error("chat not found"); } });
+    const row = await r.runOnce();
+
+    expect(r.calls).toEqual(["download", "cache.save", "archive.save"]); // no deliver after a failed save
+    expect(row.status).toBe("pending");
+    expect(row.retries).toBe(1);
+    expect(row.error).toContain("cache save: chat not found");
+    expect(r.notes).toHaveLength(0); // no direct send when a cache exists but failed
+    expect(existsSync(r.files[0]!)).toBe(false);
+  });
+
+  test("archive save fails after delivery -> job is done, no re-delivery, failure goes to error_log", async () => {
+    const r = rig({ archiveSave: async () => { throw new Error("disk full"); } });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("done");
+    expect(r.calls).toEqual(["download", "cache.save", "cache.deliver", "archive.save"]);
+    expect(errorLogCount(r)).toBe(1);
+  });
+
+  test("archive-only mode: archive fails but the direct send succeeded -> done", async () => {
+    const r = rig({ withCache: false, archiveSave: async () => { throw new Error("disk full"); } });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("done");
+    expect(r.notes).toHaveLength(1);
+    expect(errorLogCount(r)).toBe(1);
+  });
+});

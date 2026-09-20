@@ -30,6 +30,10 @@ export interface ProcessDownloadJobDeps {
 
 export type ProcessDownloadJobFn = (job: QueueItem, log: WorkerLog) => Promise<void>;
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessDownloadJobFn {
   async function logError(jobId: number, url: string, error: string) {
     await deps.errorLog.add(jobId, url, error);
@@ -146,32 +150,58 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     }
 
     log.info(`job ${job.id} | storing (${deps.caches.length + deps.archives.length} backend(s))`);
-    let delivered = false;
-    for (const store of deps.caches) {
-      log.info(`job ${job.id} | store=${store.name} | save start`);
-      await store.save(result.resource, result.filePath);
-      log.info(`job ${job.id} | store=${store.name} | save done`);
-      log.info(`job ${job.id} | store=${store.name} | deliver start`);
-      await store.deliver(result.resource, job.id);
-      log.info(`job ${job.id} | store=${store.name} | deliver done`);
-      delivered = true;
-    }
-    for (const store of deps.archives) {
-      log.info(`job ${job.id} | store=${store.name} | save start`);
-      await store.save(result.resource, result.filePath);
-      log.info(`job ${job.id} | store=${store.name} | save done`);
+    // Delivery to the user decides the job's fate; the archive is a secondary copy. A failing
+    // backend must not stop the others, and a failing archive must not re-run a delivery that
+    // already reached the user (the retry would send the file again).
+    const deliveryErrors: string[] = [];
+    try {
+      for (const store of deps.caches) {
+        try {
+          log.info(`job ${job.id} | store=${store.name} | save start`);
+          await store.save(result.resource, result.filePath);
+          log.info(`job ${job.id} | store=${store.name} | save done`);
+        } catch (err) {
+          deliveryErrors.push(`${store.name} save: ${errorMessage(err)}`);
+          continue; // deliver only what this store actually saved
+        }
+        try {
+          log.info(`job ${job.id} | store=${store.name} | deliver start`);
+          await store.deliver(result.resource, job.id);
+          log.info(`job ${job.id} | store=${store.name} | deliver done`);
+        } catch (err) {
+          deliveryErrors.push(`${store.name} deliver: ${errorMessage(err)}`);
+        }
+      }
+
+      for (const store of deps.archives) {
+        try {
+          log.info(`job ${job.id} | store=${store.name} | save start`);
+          await store.save(result.resource, result.filePath);
+          log.info(`job ${job.id} | store=${store.name} | save done`);
+        } catch (err) {
+          const message = `archive ${store.name} save failed: ${errorMessage(err)}`;
+          log.warn(`job ${job.id} | ${message}`);
+          await logError(job.id, job.url, message);
+        }
+      }
+
+      // Без caches (например только fs-архив) доставить некому — шлём свежескачанные байты
+      // напрямую через NotifierPort. Если cache был, но упал, напрямую не шлём: ретрай доставит.
+      if (deps.caches.length === 0) {
+        try {
+          log.info(`job ${job.id} | sending directly to user (no deliverable store)`);
+          await deps.notifier.notify(job.id, result);
+        } catch (err) {
+          deliveryErrors.push(`notify: ${errorMessage(err)}`);
+        }
+      }
+    } finally {
+      // Все ResourceStorePort.save() только читают/копируют исходник, никогда не забирают
+      // владение им (см. docs/specs/types.md) — временный файл всегда чистим сами.
+      await unlink(result.filePath).catch(() => {});
     }
 
-    // Ни один cache не доставил (например только fs-архив без Telegram-кэша) —
-    // шлём свежескачанные байты напрямую через NotifierPort.
-    if (!delivered) {
-      log.info(`job ${job.id} | sending directly to user (no deliverable store)`);
-      await deps.notifier.notify(job.id, result);
-    }
-
-    // Все ResourceStorePort.save() только читают/копируют исходник, никогда не забирают
-    // владение им (см. docs/specs/types.md) — временный файл всегда чистим сами.
-    await unlink(result.filePath).catch(() => {});
+    if (deliveryErrors.length > 0) throw new Error(deliveryErrors.join("; "));
 
     return false;
   }
