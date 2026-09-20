@@ -2,7 +2,7 @@ import type { Telegraf } from "telegraf";
 import { message, channelPost } from "telegraf/filters";
 import { config } from "../../config";
 import { logger } from "../../logger";
-import { extractUrl } from "./extract-url";
+import { extractUrls } from "./extract-url";
 import type { EnqueueDownloadFn } from "../../application/enqueue-download";
 import type { GetUserQueueStatusFn } from "../../application/get-user-queue-status";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
@@ -71,23 +71,35 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
   });
 
   bot.on(message("text"), async (ctx) => {
-    const url = extractUrl(ctx.message.text);
-    if (!url) {
+    const urls = extractUrls(ctx.message.text);
+    if (urls.length === 0) {
       await ctx.reply("Отправь ссылку на трек или плейлист");
       return;
     }
 
     await deps.users.upsert(ctx.from.id, ctx.from.username ?? null);
 
-    const result = await deps.enqueueDownload({ url, userId: ctx.from.id });
-
-    if (result.status === "duplicate") {
-      await ctx.reply("Уже в очереди");
-      return;
+    let queued = 0;
+    let duplicates = 0;
+    for (const url of urls) {
+      const result = await deps.enqueueDownload({ url, userId: ctx.from.id });
+      if (result.status === "duplicate") {
+        duplicates++;
+        continue;
+      }
+      queued++;
+      await deps.replyRefs.save(result.jobId, ctx.chat.id, ctx.message.message_id);
     }
 
-    await deps.replyRefs.save(result.jobId, ctx.chat.id, ctx.message.message_id);
-    await ctx.reply("Добавлено в очередь");
+    if (urls.length === 1) {
+      await ctx.reply(duplicates === 1 ? "Уже в очереди" : "Добавлено в очередь");
+      return;
+    }
+    await ctx.reply(
+      duplicates > 0
+        ? `Добавлено в очередь: ${queued}, уже в очереди: ${duplicates}`
+        : `Добавлено в очередь: ${queued}`
+    );
   });
 
   bot.on(channelPost(), async (ctx) => {
@@ -103,17 +115,17 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
     const text = "text" in post ? post.text : "caption" in post ? post.caption : undefined;
     if (!text) return;
 
-    const url = extractUrl(text);
-    if (!url) return;
+    const urls = extractUrls(text);
+    if (urls.length === 0) return;
 
     // Channel posts have no `.from` in the Bot API (only regular chat messages do) — use
     // the channel's own id as a placeholder; what actually matters for delivery is the
     // reply-ref (chatId=channel, messageId=post) saved below.
     const userId = Number(config.channelId);
-    const result = await deps.enqueueDownload({ url, userId });
-
-    if (result.status === "duplicate") return;
-
-    await deps.replyRefs.save(result.jobId, ctx.chat.id, post.message_id);
+    for (const url of urls) {
+      const result = await deps.enqueueDownload({ url, userId });
+      if (result.status === "duplicate") continue;
+      await deps.replyRefs.save(result.jobId, ctx.chat.id, post.message_id);
+    }
   });
 }
