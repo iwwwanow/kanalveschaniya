@@ -6,15 +6,19 @@ vars: {
 
 direction: down
 
-# Вопрос диаграммы: где Telegram подключается к приложению. Три шва:
-# вход (ссылка от пользователя), выход (сообщение пользователю), хранилище + доставка (канал).
-
-user: "пользователь (чат с ботом)"
-channel: "приватный канал"
+# Вопрос диаграммы: где Telegram подключается к приложению (три шва: вход, выход,
+# хранилище + доставка). ВСЕ стрелки — направление зависимости в коде: внутрь,
+# infrastructure -> application/domain. Потоки данных во время работы по ним не читать:
+# application вызывает адаптеры только через порты домена.
 
 application: {
   enqueue-download
   process-download-job
+}
+
+domain.ports: {
+  notifier
+  resource-cache
 }
 
 telegram: {
@@ -28,16 +32,24 @@ telegram-db: "telegram.db" {
   resource-refs: "resource-refs\n(resource -> сообщение в канале)"
 }
 
-user -> telegram.telegram-handlers: ссылка
-telegram.telegram-handlers -> application.enqueue-download
-telegram.telegram-handlers -> telegram-db.reply-refs: "запоминает, куда отвечать"
+bot-api: "Telegram Bot API\n(пользователь, приватный канал)"
 
-application.process-download-job -> telegram.telegram-notifier: "notify (ошибка, плейлист, прямая отправка)"
-telegram.telegram-notifier -> user: "sendMessage / sendAudio"
-telegram.telegram-notifier -> telegram-db.reply-refs: читает
+# вход
+telegram.telegram-handlers -> application.enqueue-download: вызывает
 
-application.process-download-job -> telegram.telegram-channel-cache: "save / deliver"
-telegram.telegram-channel-cache -> channel: "upload"
-telegram.telegram-channel-cache -> user: "forward из канала"
-telegram.telegram-channel-cache -> telegram-db.resource-refs: "пишет / читает"
-telegram.telegram-channel-cache -> telegram-db.reply-refs: читает
+# выход и хранилище: application знает порт, адаптер его реализует
+application.process-download-job -> domain.ports.notifier: uses
+telegram.telegram-notifier -> domain.ports.notifier: implements
+application.process-download-job -> domain.ports.resource-cache: uses
+telegram.telegram-channel-cache -> domain.ports.resource-cache: implements
+
+# состояние telegram-слоя
+telegram.telegram-handlers -> telegram-db.reply-refs
+telegram.telegram-notifier -> telegram-db.reply-refs
+telegram.telegram-channel-cache -> telegram-db.reply-refs
+telegram.telegram-channel-cache -> telegram-db.resource-refs
+
+# внешняя система
+telegram.telegram-handlers -> bot-api: "принимает сообщения"
+telegram.telegram-notifier -> bot-api: "sendMessage / sendAudio"
+telegram.telegram-channel-cache -> bot-api: "upload / forward"
