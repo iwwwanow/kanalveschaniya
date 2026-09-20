@@ -11,18 +11,20 @@ import { createResourceRepository } from "./infrastructure/repository/resource-r
 import { createTelegramReplyRefsRepository } from "./infrastructure/repository/telegram-reply-refs";
 import { createTelegramTrackRefsRepository } from "./infrastructure/repository/telegram-track-refs";
 import { createTelegramUsersRepository } from "./infrastructure/repository/telegram-users";
-import { createYtDlpDownloader, requeueGeoBlockedIfProxyAvailable } from "./infrastructure/adapters/yt-dlp";
+import { createYtDlpDownloader } from "./infrastructure/adapters/yt-dlp";
 import { createTelegramNotifier } from "./infrastructure/adapters/telegram-notifier";
 import { createTelegramChannelCache } from "./infrastructure/adapters/telegram-channel-cache";
 import { createFsCacheAdapter } from "./infrastructure/adapters/fs-cache-adapter";
 import type { TrackStorePort, TrackCachePort } from "./domain/track-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
 import { createGetUserQueueStatus } from "./application/get-user-queue-status";
+import { createRecoverStuckJobs } from "./application/recover-stuck-jobs";
+import { createRequeueBlockedJobs } from "./application/requeue-blocked-jobs";
+import { BlockReason } from "./domain/block-reason";
 import { createProcessDownloadJob } from "./application/process-download-job";
 import { createBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePoller } from "./infrastructure/workers/queue-poller";
-import { recoverStuckProcessingJobs } from "./infrastructure/workers/recover-stuck-jobs";
 
 // DATA_DIR handling preserved as-is (read directly, not via config.ts) — now resolves
 // app.db + telegram.db + a possible legacy bot.db in the same directory.
@@ -85,8 +87,21 @@ const processDownloadJob = createProcessDownloadJob({
   registerPlaylistEntryOrigin: (childJobId, userId) => replyRefs.save(childJobId, userId, null),
 });
 
-await recoverStuckProcessingJobs(queueRepo, notifier);
-await requeueGeoBlockedIfProxyAvailable(queueRepo);
+const recoverStuckJobs = createRecoverStuckJobs({ queue: queueRepo, notifier });
+const requeueBlockedJobs = createRequeueBlockedJobs(queueRepo);
+
+await recoverStuckJobs(logger);
+
+// With a PROXY configured, jobs that earlier failed as geo-blocked get another chance.
+// Staggered by GEO_REQUEUE_STAGGER_SECONDS (backoffSeconds' own base interval) instead of
+// releasing the whole geo-blocked backlog as claimable in one instant — a large backlog
+// requeued all at once right at cold start is a plausible OOM amplifier alongside the
+// upload double-buffering fixed earlier (see docs/diary/2026-09-06_oom-restart-storm-research.md).
+const GEO_REQUEUE_STAGGER_SECONDS = 30;
+if (config.proxy) {
+  await requeueBlockedJobs({ reason: BlockReason.Geo, staggerSeconds: GEO_REQUEUE_STAGGER_SECONDS });
+  logger.info("requeued geo-blocked jobs for retry (proxy is set), staggered to avoid a cold-start burst");
+}
 startQueuePoller(queueRepo, processDownloadJob);
 
 startHealthServer(config.healthPort);
