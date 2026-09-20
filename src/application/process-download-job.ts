@@ -118,6 +118,9 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     const result = await deps.downloader.download(url);
 
     if (!result.ok) {
+      // retryable -> hand it to the retry/backoff path in processDownloadJob's catch (same
+      // as any thrown error); otherwise it is terminal.
+      if (result.retryable) throw new Error(result.error);
       await failPermanently(job, result, log);
       return true;
     }
