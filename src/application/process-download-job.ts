@@ -3,7 +3,7 @@ import { config } from "../config";
 import { type QueueItem, type QueueRepository, QueueStatus, MAX_RETRIES, backoffSeconds } from "../domain/queue";
 import { BlockReason } from "../domain/block-reason";
 import type { Track } from "../domain/resource";
-import type { DownloaderPort } from "../domain/download";
+import type { DownloaderPort, DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import { type TrackStorePort, type TrackCachePort, isTrackCachePort } from "../domain/track-cache";
@@ -35,6 +35,18 @@ export type ProcessDownloadJobFn = (job: QueueItem, log: WorkerLog) => Promise<v
 export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessDownloadJobFn {
   async function logError(jobId: number, url: string, error: string) {
     await deps.errorLog.add(jobId, url, error);
+  }
+
+  // Terminal, non-retryable failure: record it, mark the job failed with its blockReason,
+  // tell the user. The caller must return true so the job isn't also marked 'done'.
+  async function failPermanently(job: QueueItem, result: Extract<DownloadResult, { ok: false }>, log: WorkerLog) {
+    log.error(`job ${job.id} | permanent failure | blockReason=${result.blockReason ?? "-"} | ${result.error.split("\n")[0]}`);
+    await logError(job.id, job.url, result.error);
+    await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
+      error: result.error,
+      blockReason: result.blockReason ?? null,
+    });
+    await deps.notifier.notify(job.id, result);
   }
 
   // Только find — ничего не отправляет, просто отвечает "есть готовая к раздаче копия?".
@@ -109,13 +121,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     const result = await deps.downloader.download(url);
 
     if (!result.ok) {
-      log.error(`job ${job.id} | permanent failure | blockReason=${result.blockReason ?? "-"} | ${result.error.split("\n")[0]}`);
-      await logError(job.id, job.url, result.error);
-      await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
-        error: result.error,
-        blockReason: result.blockReason ?? null,
-      });
-      await deps.notifier.notify(job.id, result);
+      await failPermanently(job, result, log);
       return true;
     }
 
@@ -125,13 +131,17 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     if (fileSize > config.maxFileSizeBytes) {
       await unlink(result.filePath).catch(() => {});
       log.warn(`job ${job.id} | skipped — exceeds 50MB | ${result.track.title}`);
-      await deps.notifier.notify(job.id, {
-        ok: false,
-        error: `Трек "${result.track.title}" превышает лимит 50MB и был пропущен`,
-        blockReason: BlockReason.TooLarge,
-        retryable: false,
-      });
-      return false;
+      await failPermanently(
+        job,
+        {
+          ok: false,
+          error: `Трек "${result.track.title}" превышает лимит 50MB и был пропущен`,
+          blockReason: BlockReason.TooLarge,
+          retryable: false,
+        },
+        log
+      );
+      return true;
     }
 
     log.info(`job ${job.id} | storing (${deps.stores.length} backend(s))`);
