@@ -46,9 +46,6 @@ infrastructure: {
       reply-refs
       resource-refs
       users
-      send-queue: "send-queue (planned)" {
-        style.stroke-dash: 4
-      }
     }
   }
   workers: {
@@ -60,7 +57,8 @@ application: {
   use-cases: {
     enqueue-download
     get-user-queue-status
-    process-download-job
+    download-job
+    deliver-job
     recover-stuck-jobs
     requeue-blocked-jobs
   }

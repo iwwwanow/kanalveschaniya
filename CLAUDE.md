@@ -50,8 +50,10 @@ src/
 │   └── error-log.ts      # ErrorLogRepository
 ├── application/          # use-cases, know only domain
 │   ├── enqueue-download.ts, get-user-queue-status.ts
-│   ├── process-download-job.ts   # the job lifecycle: cache-hit → download → store/deliver, retries, failures
-│   ├── recover-stuck-jobs.ts     # startup: 'processing' left by a crashed run counts as an attempt
+│   ├── download-job.ts   # stage 1: resolve → cache/archive hit? → download → archive → stage the file (status downloaded)
+│   ├── deliver-job.ts    # stage 2: staged file → caches + user, own retry budget (never re-downloads)
+│   ├── job-support.ts    # shared: failJob (permanent failure), errorMessage
+│   ├── recover-stuck-jobs.ts     # startup: 'processing'/'delivering' left by a crashed run counts as an attempt
 │   ├── requeue-blocked-jobs.ts   # requeue jobs by BlockReason, staggered
 │   └── worker-log.ts
 └── infrastructure/
@@ -85,7 +87,11 @@ created before 2026-09 (`track_id`, `telegram_track_refs`) are converted on star
 `openAppDb`/`openTelegramDb` before the Drizzle migrations. Not backward compatible: an older
 image can't read a converted database — back up `DATA_DIR` before deploying.
 
-**queue.status values**: `pending` | `processing` | `done` | `failed` (`QueueStatus` enum in `domain/queue.ts`)
+**queue.status values** (`QueueStatus` enum in `domain/queue.ts`): `pending` → `processing` → `downloaded` → `delivering` → `done`
+(or `failed`). A job has two stages with their own in-flight state and retry counter: *download* (`retries`, `retry_after`)
+ends with the file staged on disk (`queue.file_path`, status `downloaded`); *delivery* (`deliver_retries`,
+`deliver_retry_after`) sends it. A failing delivery is retried without downloading again. If the staged file is gone
+(a restart clears the temp dir) the job goes back to `pending`, spending one download attempt.
 
 **queue.block_reason** (`BlockReason` enum in `domain/block-reason.ts`) — why a job was permanently stopped:
 `geo` (geo-restricted), `drm`, `too_large` (over the 50MB Bot API limit), `too_long` (audio whose duration alone can't fit the limit, refused before downloading), `crashed_repeatedly` (the
@@ -106,10 +112,11 @@ The `queue.error` field only keeps the last error.
 
 ## Worker
 
-- `WORKER_CONCURRENCY` parallel workers (default 3), started by `startQueuePoller`
-- Each worker has its own colored logger: worker #1 = cyan, #2 = magenta, #3 = yellow
+- Two pools started by `startQueuePollers`: `WORKER_CONCURRENCY` download workers (default 3, claim `pending`) and
+  `DELIVER_CONCURRENCY` delivery workers (default 1, claim `downloaded`)
+- Each worker has its own colored logger (worker #1 = cyan, #2 = magenta, #3 = yellow, then repeating)
 - Double `while(true)`: outer catches unexpected crashes and restarts after 5s, inner is the job loop
-- Retry logic: max 3 attempts, exponential backoff between retries
+- Retry logic: max 3 attempts per stage, exponential backoff between retries
 - Permanent failures (no retry): HTTP 404, geo restriction, DRM, over 50MB — the job goes to `failed`, the
   user is notified (`NotifierPort`)
 
@@ -137,7 +144,8 @@ in code fails `tsc`. `tests/localization.test.ts` checks the file.
 | `BOT_TOKEN` | yes | Telegram bot token |
 | `CHANNEL_ID` | yes | Private channel ID (e.g. `-1001234567890`) |
 | `PROXY` | no | socks5 proxy (e.g. `socks5://localhost:9090`) |
-| `WORKER_CONCURRENCY` | no | Number of parallel workers (default 3) |
+| `WORKER_CONCURRENCY` | no | Number of parallel download workers (default 3) |
+| `DELIVER_CONCURRENCY` | no | Number of parallel delivery workers (default 1) |
 | `CONTENT_DIR` | no | Directory for permanent mp3/mp4 storage (default `./content`) |
 | `CACHE_TO_CHANNEL` | no | Upload/cache tracks in the private channel (default `true`; `false` sends directly to the user, no dedup) |
 | `SAVE_TO_CONTENT_DIR` | no | Save a permanent local copy to `CONTENT_DIR` (default `true`; `false` deletes the temp file after sending) |

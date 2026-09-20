@@ -7,7 +7,7 @@ import type { Resource } from "./resource";
 // секция "Ревизия — 2026-08-24".
 export interface ResourceStorePort {
   // Короткое имя бэкенда для логов (какой именно стор сохраняет/падает) — см.
-  // process-download-job.ts, где каждый save()/deliver() логируется отдельно.
+  // download-job.ts / deliver-job.ts, где каждый save()/deliver() логируется отдельно.
   readonly name: string;
   find(resourceId: string): Promise<Resource | null>;
   // jobId — opaque, как у deliver: даёт реализации контекст запроса (например Telegram-кэш

@@ -7,9 +7,12 @@ vars: {
 direction: down
 
 # Вопрос диаграммы: какая часть infrastructure подключена к какому порту домена.
-# (Что вызывает порты — process-download-job; связку делает main.ts.)
+# (Что вызывает порты — два этапа задачи: download-job и deliver-job; связку делает main.ts.)
 
-application.process-download-job
+application: {
+  download-job
+  deliver-job
+}
 
 domain: {
   ports: {
@@ -27,10 +30,10 @@ infrastructure: {
   telegram-channel-cache
 }
 
-application.process-download-job -> domain.ports.downloader: uses
-application.process-download-job -> domain.ports.notifier: uses
-application.process-download-job -> domain.ports.resource-store: "save (archives)"
-application.process-download-job -> domain.ports.resource-cache: "find / save / deliver (caches)"
+application.download-job -> domain.ports.downloader: uses
+application.download-job -> domain.ports.resource-store: "save (archives)"
+application.deliver-job -> domain.ports.resource-cache: "save / deliver (caches)"
+application.deliver-job -> domain.ports.notifier: "send file (no cache)"
 
 infrastructure.yt-dlp -> domain.ports.downloader: implements
 infrastructure.telegram-notifier -> domain.ports.notifier: implements

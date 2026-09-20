@@ -1,5 +1,6 @@
+import { unlink } from "fs/promises";
 import { MAX_RETRIES, QueueStatus, backoffSeconds } from "../domain/queue";
-import type { QueueRepository } from "../domain/queue";
+import type { QueueItem, QueueRepository } from "../domain/queue";
 import { BlockReason } from "../domain/block-reason";
 import type { NotifierPort } from "../domain/notifier";
 import type { WorkerLog } from "./worker-log";
@@ -11,38 +12,49 @@ export interface RecoverStuckJobsDeps {
 
 export type RecoverStuckJobsFn = (log: WorkerLog) => Promise<void>;
 
-// Startup-only. A job stuck in 'processing' means the whole process died mid-download
-// (OOM-kill, pod restart from a stuck liveness probe) — the in-process catch in
-// process-download-job.ts never ran, so `retries` was never incremented and the normal
-// exhaustion check never fired. Without this, a resource whose own download crashes the
-// process retries forever: crash -> reset to pending -> claimed again -> crashes again,
-// no cap. Counting the crash itself as an attempt closes that loop.
+// Startup-only. A job stuck in 'processing' (download) or 'delivering' means the whole process
+// died mid-way (OOM-kill, pod restart from a stuck liveness probe) — the in-process catch in
+// download-job.ts / deliver-job.ts never ran, so the stage's attempt counter was never
+// incremented and the normal exhaustion check never fired. Without this, a resource whose own
+// download or delivery crashes the process retries forever: crash -> reset -> claimed again ->
+// crashes again, no cap. Counting the crash itself as an attempt closes that loop.
 export function createRecoverStuckJobs(deps: RecoverStuckJobsDeps): RecoverStuckJobsFn {
+  const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+  async function giveUp(job: QueueItem, attempts: number, counters: Partial<QueueItem>, log: WorkerLog) {
+    const error = `the process crashed while handling this job ${attempts} time(s) — giving up`;
+    await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
+      ...counters,
+      error,
+      blockReason: BlockReason.CrashedRepeatedly,
+      filePath: null,
+    });
+    await deps.notifier.notify(job.id, { ok: false, error, retryable: false, blockReason: BlockReason.CrashedRepeatedly });
+    if (job.filePath) await unlink(job.filePath).catch(() => {});
+    log.error(`job ${job.id} | crashed_repeatedly | exhausted after ${attempts} crash(es)`);
+  }
+
   return async function recoverStuckJobs(log) {
-    const stuck = await deps.queue.findStuckProcessing();
-    if (stuck.length === 0) return;
-
-    for (const job of stuck) {
+    for (const job of await deps.queue.findStuckProcessing()) {
       const retries = job.retries + 1;
-
       if (retries >= MAX_RETRIES) {
-        const error = `the process crashed while downloading this job ${retries} time(s) — giving up`;
-        await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
-          retries,
-          error,
-          blockReason: BlockReason.CrashedRepeatedly,
-        });
-        await deps.notifier.notify(job.id, {
-          ok: false,
-          error,
-          retryable: false,
-          blockReason: BlockReason.CrashedRepeatedly,
-        });
-        log.error(`job ${job.id} | crashed_repeatedly | exhausted after ${retries} crash(es)`);
+        await giveUp(job, retries, { retries }, log);
       } else {
-        const retryAfter = Math.floor(Date.now() / 1000) + backoffSeconds(retries);
+        const retryAfter = nowSeconds() + backoffSeconds(retries);
         await deps.queue.updateStatus(job.id, QueueStatus.Pending, { retries, retryAfter });
-        log.warn(`job ${job.id} | recovered from crash | attempt ${retries + 1} in ${backoffSeconds(retries)}s`);
+        log.warn(`job ${job.id} | recovered from crash | download attempt ${retries + 1} in ${backoffSeconds(retries)}s`);
+      }
+    }
+
+    // The file is already downloaded and staged: only the delivery is retried.
+    for (const job of await deps.queue.findStuckDelivering()) {
+      const deliverRetries = job.deliverRetries + 1;
+      if (deliverRetries >= MAX_RETRIES) {
+        await giveUp(job, deliverRetries, { deliverRetries }, log);
+      } else {
+        const deliverRetryAfter = nowSeconds() + backoffSeconds(deliverRetries);
+        await deps.queue.updateStatus(job.id, QueueStatus.Downloaded, { deliverRetries, deliverRetryAfter });
+        log.warn(`job ${job.id} | recovered from crash | delivery attempt ${deliverRetries + 1} in ${backoffSeconds(deliverRetries)}s`);
       }
     }
   };

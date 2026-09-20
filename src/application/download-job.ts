@@ -1,14 +1,18 @@
-import { unlink } from "fs/promises";
+import { rename, unlink } from "fs/promises";
+import { basename, dirname, join } from "path";
 import { type QueueItem, type QueueRepository, QueueStatus, MAX_RETRIES, backoffSeconds } from "../domain/queue";
 import { BlockReason } from "../domain/block-reason";
-import type { Resource } from "../domain/resource";
-import type { DownloaderPort, DownloadResult } from "../domain/download";
+import type { Resource, ResourceRepository } from "../domain/resource";
+import type { DownloaderPort } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import type { ResourceArchivePort, ResourceCachePort } from "../domain/resource-cache";
+import { errorMessage, failJob } from "./job-support";
 import type { WorkerLog } from "./worker-log";
 
-export interface ProcessDownloadJobDeps {
+// Stage 1 of a job: resolve the resource, serve it from a cache/archive if we already have it,
+// otherwise download it, archive it and stage the file for the delivery stage (deliver-job.ts).
+export interface DownloadJobDeps {
   queue: QueueRepository;
   downloader: DownloaderPort;
   // Сторы, которые умеют не только хранить, но и раздать трек пользователю (сейчас —
@@ -16,6 +20,8 @@ export interface ProcessDownloadJobDeps {
   caches: ResourceCachePort[];
   // Архивы (например fs): сохраняют копию и могут отдать файл обратно (findFile) — дедуп без скачивания.
   archives: ResourceArchivePort[];
+  // Stage 2 reads the resource back from here (its metadata isn't on the queue row).
+  resources: ResourceRepository;
   notifier: NotifierPort;
   errorLog: ErrorLogRepository;
   // Files above this are rejected as BlockReason.TooLarge (the limit itself — Telegram Bot API —
@@ -28,27 +34,11 @@ export interface ProcessDownloadJobDeps {
   registerPlaylistEntryOrigin: (childJobId: number, userId: number) => Promise<void>;
 }
 
-export type ProcessDownloadJobFn = (job: QueueItem, log: WorkerLog) => Promise<void>;
+export type DownloadJobFn = (job: QueueItem, log: WorkerLog) => Promise<void>;
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessDownloadJobFn {
+export function createDownloadJob(deps: DownloadJobDeps): DownloadJobFn {
   async function logError(jobId: number, url: string, error: string) {
     await deps.errorLog.add(jobId, url, error);
-  }
-
-  // Terminal, non-retryable failure: record it, mark the job failed with its blockReason,
-  // tell the user. The caller must return true so the job isn't also marked 'done'.
-  async function failPermanently(job: QueueItem, result: Extract<DownloadResult, { ok: false }>, log: WorkerLog) {
-    log.error(`job ${job.id} | permanent failure | blockReason=${result.blockReason ?? "-"} | ${result.error.split("\n")[0]}`);
-    await logError(job.id, job.url, result.error);
-    await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
-      error: result.error,
-      blockReason: result.blockReason ?? null,
-    });
-    await deps.notifier.notify(job.id, result);
   }
 
   // Только find — ничего не отправляет, просто отвечает "есть готовая к раздаче копия?".
@@ -133,10 +123,10 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     const result = await deps.downloader.download(url);
 
     if (!result.ok) {
-      // retryable -> hand it to the retry/backoff path in processDownloadJob's catch (same
+      // retryable -> hand it to the retry/backoff path in downloadJob's catch (same
       // as any thrown error); otherwise it is terminal.
       if (result.retryable) throw new Error(result.error);
-      await failPermanently(job, result, log);
+      await failJob(deps, job, result, log);
       return true;
     }
 
@@ -147,7 +137,8 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       const limitMb = Math.round(deps.maxFileSizeBytes / 1024 / 1024);
       await unlink(result.filePath).catch(() => {});
       log.warn(`job ${job.id} | skipped — exceeds ${limitMb}MB | ${result.resource.title}`);
-      await failPermanently(
+      await failJob(
+        deps,
         job,
         {
           ok: false,
@@ -161,64 +152,44 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       return true;
     }
 
-    log.info(`job ${job.id} | storing (${deps.caches.length + deps.archives.length} backend(s))`);
-    // Delivery to the user decides the job's fate; the archive is a secondary copy. A failing
-    // backend must not stop the others, and a failing archive must not re-run a delivery that
-    // already reached the user (the retry would send the file again).
-    const deliveryErrors: string[] = [];
-    try {
-      for (const store of deps.caches) {
-        try {
-          log.info(`job ${job.id} | store=${store.name} | save start`);
-          await store.save(result.resource, result.filePath, job.id);
-          log.info(`job ${job.id} | store=${store.name} | save done`);
-        } catch (err) {
-          deliveryErrors.push(`${store.name} save: ${errorMessage(err)}`);
-          continue; // deliver only what this store actually saved
-        }
-        try {
-          log.info(`job ${job.id} | store=${store.name} | deliver start`);
-          await store.deliver(result.resource, job.id);
-          log.info(`job ${job.id} | store=${store.name} | deliver done`);
-        } catch (err) {
-          deliveryErrors.push(`${store.name} deliver: ${errorMessage(err)}`);
-        }
+    // The archive is a secondary copy, so it is saved right away and a failure only goes to
+    // error_log. Delivering to the user is the next stage — the file is staged for it, so a
+    // failing delivery is retried without downloading the resource again.
+    for (const store of deps.archives) {
+      try {
+        log.info(`job ${job.id} | store=${store.name} | save start`);
+        await store.save(result.resource, result.filePath, job.id);
+        log.info(`job ${job.id} | store=${store.name} | save done`);
+      } catch (err) {
+        const message = `archive ${store.name} save failed: ${errorMessage(err)}`;
+        log.warn(`job ${job.id} | ${message}`);
+        await logError(job.id, job.url, message);
       }
-
-      for (const store of deps.archives) {
-        try {
-          log.info(`job ${job.id} | store=${store.name} | save start`);
-          await store.save(result.resource, result.filePath, job.id);
-          log.info(`job ${job.id} | store=${store.name} | save done`);
-        } catch (err) {
-          const message = `archive ${store.name} save failed: ${errorMessage(err)}`;
-          log.warn(`job ${job.id} | ${message}`);
-          await logError(job.id, job.url, message);
-        }
-      }
-
-      // Без caches (например только fs-архив) доставить некому — шлём свежескачанные байты
-      // напрямую через NotifierPort. Если cache был, но упал, напрямую не шлём: ретрай доставит.
-      if (deps.caches.length === 0) {
-        try {
-          log.info(`job ${job.id} | sending directly to user (no deliverable store)`);
-          await deps.notifier.notify(job.id, result);
-        } catch (err) {
-          deliveryErrors.push(`notify: ${errorMessage(err)}`);
-        }
-      }
-    } finally {
-      // Все ResourceStorePort.save() только читают/копируют исходник, никогда не забирают
-      // владение им (см. docs/specs/types.md) — временный файл всегда чистим сами.
-      await unlink(result.filePath).catch(() => {});
     }
 
-    if (deliveryErrors.length > 0) throw new Error(deliveryErrors.join("; "));
+    await deps.resources.save(result.resource);
 
-    return false;
+    // Unique per job: a second job for the same resource downloads to the same yt-dlp path.
+    const stagedPath = join(dirname(result.filePath), `staged-${job.id}-${basename(result.filePath)}`);
+    await rename(result.filePath, stagedPath);
+    try {
+      await deps.queue.updateStatus(job.id, QueueStatus.Downloaded, {
+        filePath: stagedPath,
+        deliverRetries: 0,
+        deliverRetryAfter: null,
+        error: null,
+        blockReason: null,
+      });
+    } catch (err) {
+      await unlink(stagedPath).catch(() => {});
+      throw err;
+    }
+    log.info(`job ${job.id} | staged for delivery | ${stagedPath}`);
+
+    return true;
   }
 
-  return async function processDownloadJob(job, log) {
+  return async function downloadJob(job, log) {
     try {
       const finalized = await runJob(job, log);
       if (!finalized) {

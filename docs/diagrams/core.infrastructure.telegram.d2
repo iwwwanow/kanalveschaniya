@@ -23,7 +23,7 @@ workers: {
 
 application: {
   enqueue-download
-  process-download-job
+  jobs: "download-job\ndeliver-job"
 }
 
 domain.ports: {
@@ -32,8 +32,8 @@ domain.ports: {
 }
 
 telegram.telegram-handlers -> application.enqueue-download
-workers.queue-poller -> application.process-download-job
+workers.queue-poller -> application.jobs
 telegram.telegram-notifier -> domain.ports.notifier: implements
 telegram.telegram-channel-cache -> domain.ports.resource-cache: implements
-application.process-download-job -> domain.ports.notifier: uses
-application.process-download-job -> domain.ports.resource-cache: uses
+application.jobs -> domain.ports.notifier: uses
+application.jobs -> domain.ports.resource-cache: uses

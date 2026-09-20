@@ -3,19 +3,36 @@ import { existsSync } from "fs";
 import { BlockReason } from "../src/domain/block-reason";
 import { MB, makeFile, resource, rig, tmpDir } from "./helpers";
 
-describe("processDownloadJob: outcomes", () => {
+const errorLogCount = (r: ReturnType<typeof rig>) =>
+  r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM error_log").get()!.c;
+
+describe("download stage: outcomes", () => {
+  test("success -> the file is staged for delivery: status downloaded, unique staged path, resource saved, nothing sent yet", async () => {
+    const r = rig();
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("downloaded");
+    expect(row.file_path).toContain(`staged-${row.id}-`);
+    expect(existsSync(row.file_path!)).toBe(true);
+    expect(existsSync(r.files[0]!)).toBe(false); // moved, not copied
+    expect(r.calls).toEqual(["download", "archive.save"]); // archived right away; caches wait for the delivery stage
+    expect(r.notes).toHaveLength(0);
+    expect(r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM resource").get()!.c).toBe(1);
+  });
+
   test("file over the limit -> failed, block_reason=too_large, error_log entry, user notified, nothing stored", async () => {
     const r = rig({ size: 50 * MB + 1 });
     const row = await r.runOnce();
 
     expect(row.status).toBe("failed");
     expect(row.block_reason).toBe("too_large");
-    expect(r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM error_log").get()!.c).toBe(1);
+    expect(errorLogCount(r)).toBe(1);
     expect(r.notes[0]).toMatchObject({ ok: false, blockReason: BlockReason.TooLarge });
-    expect(r.calls).toEqual(["download"]); // downloaded, but never stored or delivered
+    expect(r.calls).toEqual(["download"]); // downloaded, but never archived or staged
+    expect(row.file_path).toBeNull();
   });
 
-  test("cache hit -> deliver only, no download", async () => {
+  test("cache hit -> deliver only, no download, done at once", async () => {
     const r = rig({ cacheHit: true });
     const row = await r.runOnce();
 
@@ -23,27 +40,16 @@ describe("processDownloadJob: outcomes", () => {
     expect(r.calls).toEqual(["cache.deliver"]);
   });
 
-  test("success stores in caches first, then archives; no direct notify when a cache delivered", async () => {
-    const r = rig();
+  test("an archive failure is only logged: the job is still staged", async () => {
+    const r = rig({ archiveSave: async () => { throw new Error("disk full"); } });
     const row = await r.runOnce();
 
-    expect(row.status).toBe("done");
-    expect(r.calls).toEqual(["download", "cache.save", "cache.deliver", "archive.save"]);
-    expect(r.notes).toHaveLength(0);
-  });
-
-  test("success without caches -> archived and sent to the user directly", async () => {
-    const r = rig({ withCache: false });
-    const row = await r.runOnce();
-
-    expect(row.status).toBe("done");
-    expect(r.calls).toEqual(["download", "archive.save"]);
-    expect(r.notes).toHaveLength(1);
-    expect(r.notes[0]).toMatchObject({ ok: true });
+    expect(row.status).toBe("downloaded");
+    expect(errorLogCount(r)).toBe(1);
   });
 });
 
-describe("processDownloadJob: retryable failures", () => {
+describe("download stage: retryable failures", () => {
   const transient = async () => ({ ok: false as const, error: "yt-dlp failed (1): network timeout", retryable: true });
 
   test("transient error -> pending, retries+1, backoff in the future, user not notified", async () => {
@@ -75,44 +81,8 @@ describe("processDownloadJob: retryable failures", () => {
   });
 });
 
-
-describe("processDownloadJob: stores are isolated from each other", () => {
-  const errorLogCount = (r: ReturnType<typeof rig>) =>
-    r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM error_log").get()!.c;
-
-  test("cache save fails -> the archive is still saved, the job is retried, the temp file is removed", async () => {
-    const r = rig({ cacheSave: async () => { throw new Error("chat not found"); } });
-    const row = await r.runOnce();
-
-    expect(r.calls).toEqual(["download", "cache.save", "archive.save"]); // no deliver after a failed save
-    expect(row.status).toBe("pending");
-    expect(row.retries).toBe(1);
-    expect(row.error).toContain("cache save: chat not found");
-    expect(r.notes).toHaveLength(0); // no direct send when a cache exists but failed
-    expect(existsSync(r.files[0]!)).toBe(false);
-  });
-
-  test("archive save fails after delivery -> job is done, no re-delivery, failure goes to error_log", async () => {
-    const r = rig({ archiveSave: async () => { throw new Error("disk full"); } });
-    const row = await r.runOnce();
-
-    expect(row.status).toBe("done");
-    expect(r.calls).toEqual(["download", "cache.save", "cache.deliver", "archive.save"]);
-    expect(errorLogCount(r)).toBe(1);
-  });
-
-  test("archive-only mode: archive fails but the direct send succeeded -> done", async () => {
-    const r = rig({ withCache: false, archiveSave: async () => { throw new Error("disk full"); } });
-    const row = await r.runOnce();
-
-    expect(row.status).toBe("done");
-    expect(r.notes).toHaveLength(1);
-    expect(errorLogCount(r)).toBe(1);
-  });
-});
-
-describe("processDownloadJob: queue row hygiene", () => {
-  test("a job that succeeds after a failed attempt ends with error and block_reason cleared", async () => {
+describe("download stage: queue row hygiene", () => {
+  test("a job that succeeds after a failed attempt ends up with error and block_reason cleared", async () => {
     const dir = tmpDir();
     let attempt = 0;
     const r = rig({
@@ -127,8 +97,8 @@ describe("processDownloadJob: queue row hygiene", () => {
     expect(first.error).toBe("network timeout");
 
     r.db.run("UPDATE queue SET retry_after = 0");
-    const second = await r.processNext();
-    expect(second.status).toBe("done");
+    const second = await r.downloadNext();
+    expect(second.status).toBe("downloaded");
     expect(second.error).toBeNull();
     expect(second.block_reason).toBeNull();
   });
@@ -141,15 +111,14 @@ describe("processDownloadJob: queue row hygiene", () => {
     expect(r.infoCalls()).toBe(1);
 
     r.db.run("UPDATE queue SET retry_after = 0");
-    await r.processNext();
+    await r.downloadNext();
     expect(r.infoCalls()).toBe(1); // second attempt reused job.resourceId
   });
 });
 
-describe("processDownloadJob: archive hits (no cache, or cache miss)", () => {
+describe("download stage: archive hits (no cache, or cache miss)", () => {
   test("fs-only: an archived resource is sent from disk, not downloaded again, and the file is kept", async () => {
-    const dir = tmpDir();
-    const archived = makeFile(dir, 10);
+    const archived = makeFile(tmpDir(), 10);
     const r = rig({ withCache: false, archiveHit: archived });
     const row = await r.runOnce();
 

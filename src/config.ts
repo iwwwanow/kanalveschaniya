@@ -16,6 +16,8 @@ export const config = {
 	// can we use boolean(required("CONTENT_DIR")) instead it? and make it optional?
   saveToContentDir: process.env.SAVE_TO_CONTENT_DIR !== "false",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY ?? 3),
+  // Workers of the delivery stage (files already downloaded); 1 is plenty for one Telegram bot.
+  deliverConcurrency: Number(process.env.DELIVER_CONCURRENCY ?? 1),
   workerIntervalMs: 5_000,
   healthPort: Number(process.env.HEALTH_PORT ?? 3000),
   maxFileSizeBytes: 50 * 1024 * 1024, // 50MB Telegram limit

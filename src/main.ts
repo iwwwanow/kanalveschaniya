@@ -21,10 +21,11 @@ import { createGetUserQueueStatus } from "./application/get-user-queue-status";
 import { createRecoverStuckJobs } from "./application/recover-stuck-jobs";
 import { createRequeueBlockedJobs } from "./application/requeue-blocked-jobs";
 import { BlockReason } from "./domain/block-reason";
-import { createProcessDownloadJob } from "./application/process-download-job";
+import { createDownloadJob } from "./application/download-job";
+import { createDeliverJob } from "./application/deliver-job";
 import { createBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
-import { startQueuePoller } from "./infrastructure/workers/queue-poller";
+import { startQueuePollers } from "./infrastructure/workers/queue-poller";
 
 // Fail on boot (not mid-reply) if telegram.localization.json was edited into an invalid state.
 assertTextsValid();
@@ -74,9 +75,10 @@ if (config.saveToContentDir) {
   archives.push(createFsCacheAdapter({ contentDir: config.contentDir, resource: resourceRepo }));
 }
 
-const processDownloadJob = createProcessDownloadJob({
+const downloadJob = createDownloadJob({
   queue: queueRepo,
   downloader,
+  resources: resourceRepo,
   caches,
   archives,
   notifier,
@@ -87,6 +89,14 @@ const processDownloadJob = createProcessDownloadJob({
 
 const recoverStuckJobs = createRecoverStuckJobs({ queue: queueRepo, notifier });
 const requeueBlockedJobs = createRequeueBlockedJobs(queueRepo);
+
+const deliverJob = createDeliverJob({
+  queue: queueRepo,
+  resources: resourceRepo,
+  caches,
+  notifier,
+  errorLog,
+});
 
 await recoverStuckJobs(logger);
 
@@ -100,7 +110,7 @@ if (config.proxy) {
   await requeueBlockedJobs({ reason: BlockReason.Geo, staggerSeconds: GEO_REQUEUE_STAGGER_SECONDS });
   logger.info("requeued geo-blocked jobs for retry (proxy is set), staggered to avoid a cold-start burst");
 }
-startQueuePoller(queueRepo, processDownloadJob);
+startQueuePollers({ queue: queueRepo, downloadJob, deliverJob });
 
 startHealthServer(config.healthPort);
 

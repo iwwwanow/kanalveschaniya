@@ -11,7 +11,8 @@ domain-порты. Никакой telegram- или yt-dlp-специфики з�
 
 ```ts
 // entities
-enum QueueStatus { Pending = "pending", Processing = "processing", Done = "done", Failed = "failed" }
+// download: pending -> processing -> downloaded (file staged); deliver: downloaded -> delivering -> done
+enum QueueStatus { Pending = "pending", Processing = "processing", Downloaded = "downloaded", Delivering = "delivering", Done = "done", Failed = "failed" }
 enum BlockReason { Geo = "geo", Drm = "drm", TooLarge = "too_large", CrashedRepeatedly = "crashed_repeatedly" }
 
 type Resource = {
@@ -31,6 +32,9 @@ type QueueItem = {
   blockReason: BlockReason | null;
   retries: number;
   retryAfter: number | null;
+  filePath: string | null; // staged download while downloaded/delivering
+  deliverRetries: number; // the delivery stage's own attempt counter
+  deliverRetryAfter: number | null;
   createdAt: number;
 };
 
@@ -81,10 +85,12 @@ interface QueueRepository {
   findPendingByUrl(url: string): Promise<QueueItem | null>;
   findPendingByResourceId(resourceId: string): Promise<QueueItem | null>;
   claim(): Promise<QueueItem | null>;
+  claimForDelivery(): Promise<QueueItem | null>;
   updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
   requeueByBlockReason(reason: BlockReason, newStatus: QueueStatus, staggerSeconds?: number): Promise<void>;
   countByStatusForUser(userId: number): Promise<Record<string, number>>;
   findStuckProcessing(): Promise<QueueItem[]>;
+  findStuckDelivering(): Promise<QueueItem[]>;
 }
 
 interface ResourceRepository {
@@ -173,7 +179,7 @@ telegram-специфичные данные протекли бы в сигна
 
 ### `blockReason` — enum в domain
 
-`queue.status` остаётся строго generic (`pending | processing | done | failed`) — никаких
+`queue.status` остаётся строго generic (`pending | processing | downloaded | delivering | done | failed`) — никаких
 специфичных для источника значений вроде `geo_blocked`. Причина, по которой задача остановлена
 навсегда, — `BlockReason` (`geo | drm | too_large | crashed_repeatedly`), enum в
 `domain/block-reason.ts`. Значения в БД — те же строки, что и раньше (`queue.block_reason`).
