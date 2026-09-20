@@ -9,7 +9,7 @@ import { createProcessDownloadJob } from "../src/application/process-download-jo
 import type { WorkerLog } from "../src/application/worker-log";
 import type { DownloadResult, DownloaderPort } from "../src/domain/download";
 import type { NotifierPort } from "../src/domain/notifier";
-import type { ResourceCachePort, ResourceStorePort } from "../src/domain/resource-cache";
+import type { ResourceArchivePort, ResourceCachePort } from "../src/domain/resource-cache";
 import type { Resource } from "../src/domain/resource";
 
 export const MB = 1024 * 1024;
@@ -36,6 +36,8 @@ export function newAppDb(): { db: Database; dir: string } {
 export interface RigOptions {
   size?: number;
   cacheHit?: boolean;
+  archiveHit?: string; // path of a file the archive can hand back for `resource`
+  info?: () => Promise<{ entries: Resource[] } | Resource>;
   withCache?: boolean;
   download?: () => Promise<DownloadResult>;
   cacheSave?: () => Promise<void>;
@@ -52,6 +54,7 @@ export function rig(opts: RigOptions = {}) {
   const notes: DownloadResult[] = [];
   const files: string[] = [];
   let infoCalls = 0;
+  const playlistSummaries: Array<{ queued: number; cached: number }> = [];
 
   const cache: ResourceCachePort = {
     name: "cache",
@@ -65,9 +68,11 @@ export function rig(opts: RigOptions = {}) {
       await opts.cacheDeliver?.();
     },
   };
-  const archive: ResourceStorePort = {
+  const archive: ResourceArchivePort = {
     name: "archive",
     find: async () => null,
+    findFile: async (resourceId) =>
+      opts.archiveHit && resourceId === resource.resourceId ? { resource, filePath: opts.archiveHit } : null,
     save: async () => {
       calls.push("archive.save");
       await opts.archiveSave?.();
@@ -76,7 +81,7 @@ export function rig(opts: RigOptions = {}) {
   const downloader: DownloaderPort = {
     getInfo: async () => {
       infoCalls++;
-      return resource;
+      return opts.info ? opts.info() : resource;
     },
     download:
       opts.download ??
@@ -91,7 +96,9 @@ export function rig(opts: RigOptions = {}) {
     notify: async (_jobId, result) => {
       notes.push(result);
     },
-    notifyPlaylistQueued: async () => {},
+    notifyPlaylistQueued: async (_jobId, summary) => {
+      playlistSummaries.push(summary);
+    },
   };
 
   const process = createProcessDownloadJob({
@@ -130,5 +137,5 @@ export function rig(opts: RigOptions = {}) {
     return processNext();
   }
 
-  return { db, dir, queue, calls, notes, files, runOnce, processNext, infoCalls: () => infoCalls };
+  return { db, dir, queue, calls, notes, files, runOnce, processNext, playlistSummaries, infoCalls: () => infoCalls };
 }

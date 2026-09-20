@@ -1,7 +1,7 @@
 import { mkdir, copyFile, readdir } from "fs/promises";
 import { join } from "path";
 import type { Resource, ResourceRepository } from "../../domain/resource";
-import type { ResourceStorePort } from "../../domain/resource-cache";
+import type { ResourceArchivePort } from "../../domain/resource-cache";
 
 export interface FsCacheAdapterDeps {
   contentDir: string;
@@ -32,14 +32,19 @@ async function findLocalFile(contentDir: string, resourceId: string): Promise<st
   return null;
 }
 
-export function createFsCacheAdapter(deps: FsCacheAdapterDeps): ResourceStorePort {
+export function createFsCacheAdapter(deps: FsCacheAdapterDeps): ResourceArchivePort {
   return {
     name: "fs",
 
     async find(resourceId) {
-      const path = await findLocalFile(deps.contentDir, resourceId);
-      if (!path) return null;
-      return deps.resource.findByResourceId(resourceId);
+      return (await this.findFile(resourceId))?.resource ?? null;
+    },
+
+    async findFile(resourceId) {
+      const filePath = await findLocalFile(deps.contentDir, resourceId);
+      if (!filePath) return null;
+      const resource = await deps.resource.findByResourceId(resourceId);
+      return resource ? { resource, filePath } : null;
     },
 
     async save(resource: Resource, filePath: string) {

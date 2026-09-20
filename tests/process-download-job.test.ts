@@ -145,3 +145,39 @@ describe("processDownloadJob: queue row hygiene", () => {
     expect(r.infoCalls()).toBe(1); // second attempt reused job.resourceId
   });
 });
+
+describe("processDownloadJob: archive hits (no cache, or cache miss)", () => {
+  test("fs-only: an archived resource is sent from disk, not downloaded again, and the file is kept", async () => {
+    const dir = tmpDir();
+    const archived = makeFile(dir, 10);
+    const r = rig({ withCache: false, archiveHit: archived });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("done");
+    expect(r.calls).toEqual([]); // no download, no save
+    expect(r.notes).toEqual([{ ok: true, resource, filePath: archived }]);
+    expect(existsSync(archived)).toBe(true);
+  });
+
+  test("cache miss but archive hit -> sent from the archive instead of downloading", async () => {
+    const archived = makeFile(tmpDir(), 10);
+    const r = rig({ archiveHit: archived });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("done");
+    expect(r.calls).toEqual([]);
+    expect(r.notes).toHaveLength(1);
+  });
+
+  test("playlist entries found in the archive are delivered at once, the rest are queued", async () => {
+    const archived = makeFile(tmpDir(), 10);
+    const other = { resourceId: "r2", url: "http://x/r2", title: "Other", duration: 5 };
+    const r = rig({ withCache: false, archiveHit: archived, info: async () => ({ entries: [resource, other] }) });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("done");
+    expect(r.notes).toHaveLength(1); // the archived entry
+    expect(r.playlistSummaries).toEqual([{ queued: 1, cached: 1 }]);
+    expect(r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM queue WHERE resource_id = 'r2'").get()!.c).toBe(1);
+  });
+});

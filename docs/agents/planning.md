@@ -130,7 +130,7 @@ Telegram-бот для скачивания музыки/видео через y
       добавлен в чат), fs-архив тоже не сохраняется — хотя формально не должен зависеть от канала.
       После разделения на `caches`/`archives` (2026-09-20) это два независимых цикла — правка стала проще.
       Подробности — `docs/backlog/2026-08-26_isolate-stores-process-download-job.md`.
-- [ ] **fs-only cache-hit не переиспользуется.** При `CACHE_TO_CHANNEL=false` повторный запрос того же
+- [x] **fs-only cache-hit не переиспользуется — сделано 2026-09-20** (`ResourceArchivePort.findFile`, `deliverExisting`). При `CACHE_TO_CHANNEL=false` повторный запрос того же
       трека скачивает его заново вместо переиспользования файла на диске.
       Подробности — `docs/backlog/2026-08-26_fs-only-cache-hit-no-deliver.md`.
 - [x] **Быстрый отказ для DRM-треков — сделано.** `isDrmProtected` в `yt-dlp.ts` → `BlockReason.Drm`,

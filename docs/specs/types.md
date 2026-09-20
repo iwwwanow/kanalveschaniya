@@ -64,6 +64,12 @@ interface DeliveryPort {
   deliver(resource: Resource, jobId: number): Promise<void>;
 }
 
+// Архив, который умеет отдать сохранённый файл обратно (fs): дедуп без скачивания — файл
+// с диска уходит пользователю через NotifierPort.notify. application держит их в `archives`.
+interface ResourceArchivePort extends ResourceStorePort {
+  findFile(resourceId: string): Promise<{ resource: Resource; filePath: string } | null>;
+}
+
 // Стор, который умеет и хранить, и раздавать. application получает такие сторы
 // отдельным списком `caches`, сторы только для хранения — списком `archives`.
 interface ResourceCachePort extends ResourceStorePort, DeliveryPort {}

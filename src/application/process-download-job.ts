@@ -5,7 +5,7 @@ import type { Resource } from "../domain/resource";
 import type { DownloaderPort, DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
-import type { ResourceStorePort, ResourceCachePort } from "../domain/resource-cache";
+import type { ResourceArchivePort, ResourceCachePort } from "../domain/resource-cache";
 import type { WorkerLog } from "./worker-log";
 
 export interface ProcessDownloadJobDeps {
@@ -14,8 +14,8 @@ export interface ProcessDownloadJobDeps {
   // Сторы, которые умеют не только хранить, но и раздать трек пользователю (сейчас —
   // telegram-канал). Единственный источник cache-hit и доставки.
   caches: ResourceCachePort[];
-  // Сторы только для хранения (например fs-архив) — участвуют лишь в save().
-  archives: ResourceStorePort[];
+  // Архивы (например fs): сохраняют копию и могут отдать файл обратно (findFile) — дедуп без скачивания.
+  archives: ResourceArchivePort[];
   notifier: NotifierPort;
   errorLog: ErrorLogRepository;
   // Files above this are rejected as BlockReason.TooLarge (the limit itself — Telegram Bot API —
@@ -52,10 +52,8 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
   }
 
   // Только find — ничего не отправляет, просто отвечает "есть готовая к раздаче копия?".
-  // Смотрит только caches (сейчас — telegram); fs-архив тут не участвует: найти
-  // локальную копию не значит суметь её раздать (доставка всё равно только через
-  // Telegram), локальная копия — архив, не источник дедупа, см. docs/specs/types.md.
-  // Сам deliver() вызывающий код делает отдельным явным шагом — не спрятан внутри find.
+  // Смотрит только caches (сейчас — telegram): они раздают сами. Сам deliver() вызывающий
+  // код делает отдельным явным шагом — не спрятан внутри find.
   async function findDeliverable(resourceId: string): Promise<{ store: ResourceCachePort; resource: Resource } | null> {
     for (const store of deps.caches) {
       const resource = await store.find(resourceId);
@@ -64,14 +62,31 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     return null;
   }
 
+  // Ресурс уже есть у нас — отдать его пользователю без скачивания: сначала из cache
+  // (deliver), затем из архива (файл с диска через NotifierPort). Файл архива не удаляем.
+  async function deliverExisting(job: QueueItem, resourceId: string, log: WorkerLog): Promise<boolean> {
+    const hit = await findDeliverable(resourceId);
+    if (hit) {
+      log.info(`job ${job.id} | cache hit | resource_id=${resourceId}`);
+      await hit.store.deliver(hit.resource, job.id);
+      return true;
+    }
+    for (const archive of deps.archives) {
+      const found = await archive.findFile(resourceId);
+      if (!found) continue;
+      log.info(`job ${job.id} | archive hit (${archive.name}) | resource_id=${resourceId}`);
+      await deps.notifier.notify(job.id, { ok: true, resource: found.resource, filePath: found.filePath });
+      return true;
+    }
+    return false;
+  }
+
   async function handlePlaylist(job: QueueItem, entries: Resource[], log: WorkerLog) {
     let cached = 0;
     let queued = 0;
 
     for (const entry of entries) {
-      const hit = await findDeliverable(entry.resourceId);
-      if (hit) {
-        await hit.store.deliver(hit.resource, job.id);
+      if (await deliverExisting(job, entry.resourceId, log)) {
         cached++;
         continue;
       }
@@ -112,12 +127,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       await deps.queue.setResourceId(job.id, resourceId);
     }
 
-    const hit = await findDeliverable(resourceId);
-    if (hit) {
-      log.info(`job ${job.id} | cache hit | resource_id=${resourceId}`);
-      await hit.store.deliver(hit.resource, job.id);
-      return false;
-    }
+    if (await deliverExisting(job, resourceId, log)) return false;
 
     log.info(`job ${job.id} | downloading | ${url}`);
     const result = await deps.downloader.download(url);

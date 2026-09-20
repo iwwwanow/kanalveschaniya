@@ -17,3 +17,5 @@
 `sendMedia`-путь из `notify()`, сейчас завязанный на `DownloadResult`).
 
 Не блокирует — сценарий с выключенным `CACHE_TO_CHANNEL` не является дефолтным.
+
+**Сделано (2026-09-20):** порт `NotifierPort` расширять не пришлось — `notify()` уже шлёт файл по `{ ok: true, resource, filePath }`. Добавлен `ResourceArchivePort extends ResourceStorePort { findFile(resourceId) }` (реализует `fs-cache-adapter`); в application `deliverExisting` смотрит сначала `caches` (deliver), затем `archives` (файл с диска через `notify`), для одиночных задач и для элементов плейлиста. Файл архива не удаляется. Тесты — `tests/process-download-job.test.ts`, `tests/fs-cache-adapter.test.ts`.

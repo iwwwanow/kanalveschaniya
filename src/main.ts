@@ -15,7 +15,7 @@ import { createYtDlpDownloader } from "./infrastructure/adapters/yt-dlp";
 import { createTelegramNotifier } from "./infrastructure/adapters/telegram-notifier";
 import { createTelegramChannelCache } from "./infrastructure/adapters/telegram-channel-cache";
 import { createFsCacheAdapter } from "./infrastructure/adapters/fs-cache-adapter";
-import type { ResourceStorePort, ResourceCachePort } from "./domain/resource-cache";
+import type { ResourceArchivePort, ResourceCachePort } from "./domain/resource-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
 import { createGetUserQueueStatus } from "./application/get-user-queue-status";
 import { createRecoverStuckJobs } from "./application/recover-stuck-jobs";
@@ -58,7 +58,7 @@ const bot = createBot({
 const notifier = createTelegramNotifier({ bot, replyRefs, maxFileSizeBytes: config.maxFileSizeBytes });
 
 const caches: ResourceCachePort[] = [];
-const archives: ResourceStorePort[] = [];
+const archives: ResourceArchivePort[] = [];
 if (config.cacheToChannel) {
   caches.push(
     createTelegramChannelCache({

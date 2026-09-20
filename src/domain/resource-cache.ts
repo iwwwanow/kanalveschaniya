@@ -21,6 +21,13 @@ export interface DeliveryPort {
   deliver(resource: Resource, jobId: number): Promise<void>;
 }
 
+// Архив, который умеет отдать сохранённый файл обратно (fs). Дедуп по нему: при повторном
+// запросе ресурс не скачивается заново, а уходит пользователю из архива (сам файл — путь
+// на диске, доставка идёт через NotifierPort). Файл архива приложение не удаляет.
+export interface ResourceArchivePort extends ResourceStorePort {
+  findFile(resourceId: string): Promise<{ resource: Resource; filePath: string } | null>;
+}
+
 // Стор, который умеет и хранить, и раздавать. deliver() надо звать у того же стора, где
 // find() нашёл трек — поэтому application получает такие сторы отдельным списком (caches),
 // а не угадывает по форме объекта в общем массиве (см. docs/specs/types.md).
