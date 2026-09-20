@@ -16,6 +16,10 @@ export const queueTable = sqliteTable("queue", {
   retryAfter: integer("retry_after").default(0),
   error: text("error"),
   createdAt: integer("created_at").default(sql`(unixepoch())`),
+  // staged delivery (see QueueStatus): the downloaded file and the delivery stage's own retry state
+  filePath: text("file_path"),
+  deliverRetries: integer("deliver_retries").notNull().default(0),
+  deliverRetryAfter: integer("deliver_retry_after"),
 });
 
 export const resourceTable = sqliteTable("resource", {

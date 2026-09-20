@@ -51,6 +51,8 @@ describe("track_id -> resource_id conversion", () => {
       expect(columns(app, "queue")).toContain("resource_id");
       expect(columns(app, "queue")).not.toContain("track_id");
       expect(columns(app, "resource")).toContain("resource_id");
+      // added by the staged_delivery migration on top of a database that predates it
+      expect(columns(app, "queue")).toEqual(expect.arrayContaining(["file_path", "deliver_retries", "deliver_retry_after"]));
       expect(tables(tg)).toContain("telegram_resource_refs");
       expect(tables(tg)).not.toContain("telegram_track_refs"); // no ghost table left after a restart
 
@@ -61,7 +63,7 @@ describe("track_id -> resource_id conversion", () => {
       expect(tg.query<{ c: number }, []>("SELECT COUNT(*) c FROM telegram_reply_refs").get()!.c).toBe(1);
 
       // Drizzle's own journal: the baseline is recorded once and not re-applied on restart
-      expect(app.query<{ c: number }, []>("SELECT COUNT(*) c FROM __drizzle_migrations").get()!.c).toBe(1);
+      expect(app.query<{ c: number }, []>("SELECT COUNT(*) c FROM __drizzle_migrations").get()!.c).toBe(2); // baseline + staged_delivery
       expect(tg.query<{ c: number }, []>("SELECT COUNT(*) c FROM __drizzle_migrations").get()!.c).toBe(1);
 
       app.close();

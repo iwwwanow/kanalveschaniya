@@ -1,8 +1,14 @@
 import type { BlockReason } from "./block-reason";
 
+// A job goes through two stages, each with its own in-flight state and retry budget:
+//   download: pending -> processing -> downloaded   (the file is staged on disk)
+//   deliver:  downloaded -> delivering -> done      (stores + sending to the user)
+// so a failing delivery is retried without downloading the resource again.
 export enum QueueStatus {
   Pending = "pending",
-  Processing = "processing",
+  Processing = "processing", // download in flight
+  Downloaded = "downloaded", // file staged (QueueItem.filePath), waiting for delivery
+  Delivering = "delivering", // delivery in flight
   Done = "done",
   Failed = "failed",
 }
@@ -26,6 +32,9 @@ export interface QueueItem {
   blockReason: BlockReason | null;
   retries: number; // generic queue bookkeeping, needed by application's backoff logic
   retryAfter: number | null; // unix timestamp; job not claimable before this time
+  filePath: string | null; // staged download, set while the job is downloaded/delivering
+  deliverRetries: number; // the delivery stage's own attempt counter
+  deliverRetryAfter: number | null; // unix timestamp; delivery not claimable before this time
   createdAt: number;
 }
 
@@ -34,6 +43,8 @@ export interface QueueRepository {
   findPendingByUrl(url: string): Promise<QueueItem | null>;
   findPendingByResourceId(resourceId: string): Promise<QueueItem | null>;
   claim(): Promise<QueueItem | null>;
+  // Next `downloaded` job whose delivery backoff has passed; marks it `delivering`.
+  claimForDelivery(): Promise<QueueItem | null>;
   // Persist the id resolved via DownloaderPort.getInfo, so a retry skips that lookup.
   setResourceId(id: number, resourceId: string): Promise<void>;
   updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
@@ -48,4 +59,6 @@ export interface QueueRepository {
   // never reached the in-process catch, so never got a chance to update their own status.
   // Startup-only, see infra/workers/recover-stuck-jobs.ts.
   findStuckProcessing(): Promise<QueueItem[]>;
+  // Same for delivery: left in `delivering` by a run that died mid-send.
+  findStuckDelivering(): Promise<QueueItem[]>;
 }

@@ -60,6 +60,50 @@ describe("queue repository", () => {
   });
 });
 
+describe("queue repository: delivery stage", () => {
+  const past = () => Math.floor(Date.now() / 1000) - 10;
+  const future = () => Math.floor(Date.now() / 1000) + 3600;
+
+  test("a downloaded job carries its staged file; new columns default sensibly", async () => {
+    const { db } = newAppDb();
+    const queue = createQueueRepository(db);
+    const id = await queue.enqueue({ url: "http://a", userId: 1 });
+    const fresh = (await queue.claim())!;
+    expect([fresh.filePath, fresh.deliverRetries, fresh.deliverRetryAfter]).toEqual([null, 0, null]);
+
+    await queue.updateStatus(id, QueueStatus.Downloaded, { filePath: "/tmp/ytdlp/staged-1.mp3" });
+    const row = db.query<Record<string, unknown>, [number]>("SELECT * FROM queue WHERE id = ?").get(id)!;
+    expect(row).toMatchObject({ status: "downloaded", file_path: "/tmp/ytdlp/staged-1.mp3", deliver_retries: 0 });
+  });
+
+  test("claimForDelivery takes the oldest downloaded job whose backoff has passed and marks it delivering", async () => {
+    const { db } = newAppDb();
+    const queue = createQueueRepository(db);
+    const waiting = await queue.enqueue({ url: "http://waiting", userId: 1 });
+    const ready = await queue.enqueue({ url: "http://ready", userId: 1 });
+    const pending = await queue.enqueue({ url: "http://pending", userId: 1 });
+    await queue.updateStatus(waiting, QueueStatus.Downloaded, { filePath: "/f1", deliverRetryAfter: future() });
+    await queue.updateStatus(ready, QueueStatus.Downloaded, { filePath: "/f2", deliverRetryAfter: past() });
+
+    const claimed = await queue.claimForDelivery();
+    expect(claimed).toMatchObject({ id: ready, status: QueueStatus.Delivering, filePath: "/f2" });
+    expect(await queue.claimForDelivery()).toBeNull(); // the other waits for its backoff; pending isn't deliverable
+    expect((await queue.findStuckDelivering()).map((j) => j.id)).toEqual([ready]);
+    expect((await queue.claim())?.id).toBe(pending); // the download claim ignores delivery states
+  });
+
+  test("a job in a delivery state still counts as active (no duplicate enqueue)", async () => {
+    const { db } = newAppDb();
+    const queue = createQueueRepository(db);
+    const id = await queue.enqueue({ url: "http://a", userId: 1, resourceId: "ra" });
+    for (const status of [QueueStatus.Downloaded, QueueStatus.Delivering]) {
+      await queue.updateStatus(id, status);
+      expect((await queue.findPendingByUrl("http://a"))?.id).toBe(id);
+      expect((await queue.findPendingByResourceId("ra"))?.id).toBe(id);
+    }
+  });
+});
+
 describe("resource / error log repositories", () => {
   test("resource: save overwrites the row (title, duration) and refreshes it; missing title/duration read as empty", async () => {
     const { db } = newAppDb();

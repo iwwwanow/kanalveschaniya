@@ -18,11 +18,15 @@ function toQueueItem(row: QueueRow): QueueItem {
     blockReason: parseBlockReason(row.blockReason),
     retries: row.retries,
     retryAfter: row.retryAfter,
+    filePath: row.filePath,
+    deliverRetries: row.deliverRetries,
+    deliverRetryAfter: row.deliverRetryAfter,
     createdAt: row.createdAt ?? 0,
   };
 }
 
-const ACTIVE = [QueueStatus.Pending, QueueStatus.Processing];
+// a resource in any of these states is already on its way — don't enqueue it twice
+const ACTIVE = [QueueStatus.Pending, QueueStatus.Processing, QueueStatus.Downloaded, QueueStatus.Delivering];
 
 export function createQueueRepository(db: Database): QueueRepository {
   const orm = drizzle(db);
@@ -77,6 +81,24 @@ export function createQueueRepository(db: Database): QueueRepository {
       return toQueueItem({ ...row, status: QueueStatus.Processing });
     },
 
+    async claimForDelivery() {
+      const row = orm
+        .select()
+        .from(queueTable)
+        .where(
+          and(
+            eq(queueTable.status, QueueStatus.Downloaded),
+            or(isNull(queueTable.deliverRetryAfter), lte(queueTable.deliverRetryAfter, sql`unixepoch()`)),
+          ),
+        )
+        .orderBy(asc(queueTable.id))
+        .limit(1)
+        .get();
+      if (!row) return null;
+      orm.update(queueTable).set({ status: QueueStatus.Delivering }).where(eq(queueTable.id, row.id)).run();
+      return toQueueItem({ ...row, status: QueueStatus.Delivering });
+    },
+
     async setResourceId(id, resourceId) {
       orm.update(queueTable).set({ resourceId }).where(eq(queueTable.id, id)).run();
     },
@@ -87,6 +109,9 @@ export function createQueueRepository(db: Database): QueueRepository {
       if (patch?.blockReason !== undefined) set.blockReason = patch.blockReason;
       if (patch?.retries !== undefined) set.retries = patch.retries;
       if (patch?.retryAfter !== undefined) set.retryAfter = patch.retryAfter;
+      if (patch?.filePath !== undefined) set.filePath = patch.filePath;
+      if (patch?.deliverRetries !== undefined) set.deliverRetries = patch.deliverRetries;
+      if (patch?.deliverRetryAfter !== undefined) set.deliverRetryAfter = patch.deliverRetryAfter;
       orm.update(queueTable).set(set).where(eq(queueTable.id, id)).run();
     },
 
@@ -101,6 +126,10 @@ export function createQueueRepository(db: Database): QueueRepository {
 
     async findStuckProcessing() {
       return orm.select().from(queueTable).where(eq(queueTable.status, QueueStatus.Processing)).all().map(toQueueItem);
+    },
+
+    async findStuckDelivering() {
+      return orm.select().from(queueTable).where(eq(queueTable.status, QueueStatus.Delivering)).all().map(toQueueItem);
     },
 
     async countByStatusForUser(userId) {
