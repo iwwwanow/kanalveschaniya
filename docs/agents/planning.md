@@ -173,7 +173,7 @@ Telegram-бот для скачивания музыки/видео через y
       `app.db`, код в git-истории, тег `v2.0.3`). Подробности — `docs/backlog/2026-08-26_migrate-legacy-db-no-batching.md`.
 - [ ] Drizzle вместо ручного `bun:sqlite` — сознательно отложено, путь миграции описан и остаётся открытым.
       Подробности — `docs/backlog/2026-08-26_drizzle-migration-deferred.md`.
-- [ ] UX-тексты бота — юзер правит сам, не через агента.
+- [x] UX-тексты бота — **вынесены в `telegram.localization.json` (2026-09-20)**, формулировки правит пользователь сам.
       Подробности — `docs/backlog/2026-08-26_bot-ux-text-cleanup.md`.
 
 ## Фичи

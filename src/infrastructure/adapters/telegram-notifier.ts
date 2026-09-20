@@ -5,30 +5,34 @@ import type { NotifierPort } from "../../domain/notifier";
 import { BlockReason } from "../../domain/block-reason";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
 import { sendMedia } from "./telegram-client/send-media";
+import { t, type TextKey } from "../localization/t";
 
 export interface TelegramNotifierDeps {
   bot: Telegraf;
   replyRefs: TelegramReplyRefsRepository;
+  // Upload limit shown in the too_large text.
+  maxFileSizeBytes: number;
 }
 
 type FailureResult = Extract<DownloadResult, { ok: false }>;
 
-// Exhaustive over BlockReason — adding a reason without a user-facing text fails typecheck.
-const BLOCK_REASON_MESSAGES: Record<BlockReason, (result: FailureResult) => string> = {
-  [BlockReason.Geo]: () =>
-    "Трек недоступен из-за гео-ограничения.\nБудет загружен автоматически при настройке прокси.",
-  [BlockReason.Drm]: () => "Трек защищён DRM, скачивание невозможно.",
-  [BlockReason.TooLarge]: (result) => result.error,
-  [BlockReason.CrashedRepeatedly]: () =>
-    "Не удалось загрузить трек — скачивание несколько раз подряд приводило к сбою (вероятно, трек слишком большой/длинный).",
+// Exhaustive over BlockReason — adding a reason without a text key fails typecheck.
+const BLOCK_REASON_TEXT: Record<BlockReason, TextKey> = {
+  [BlockReason.Geo]: "failure.geo",
+  [BlockReason.Drm]: "failure.drm",
+  [BlockReason.TooLarge]: "failure.too_large",
+  [BlockReason.CrashedRepeatedly]: "failure.crashed_repeatedly",
 };
 
-function formatFailureMessage(result: FailureResult): string {
-  if (result.blockReason) return BLOCK_REASON_MESSAGES[result.blockReason](result);
-  if (result.error.includes("HTTP Error 404")) {
-    return "Не удалось загрузить: трек не найден (404).";
+function formatFailureMessage(result: FailureResult, maxFileSizeBytes: number): string {
+  if (result.blockReason) {
+    return t(BLOCK_REASON_TEXT[result.blockReason], {
+      title: result.resource?.title ?? "",
+      limit_mb: Math.round(maxFileSizeBytes / 1024 / 1024),
+    });
   }
-  return "Не удалось загрузить трек: превышено число попыток.";
+  if (result.error.includes("HTTP Error 404")) return t("failure.not_found");
+  return t("failure.generic");
 }
 
 export function createTelegramNotifier(deps: TelegramNotifierDeps): NotifierPort {
@@ -55,7 +59,7 @@ export function createTelegramNotifier(deps: TelegramNotifierDeps): NotifierPort
         return;
       }
 
-      await deps.bot.telegram.sendMessage(ref.chatId, formatFailureMessage(result), extra);
+      await deps.bot.telegram.sendMessage(ref.chatId, formatFailureMessage(result, deps.maxFileSizeBytes), extra);
     },
 
     async notifyPlaylistQueued(jobId, summary) {
@@ -65,7 +69,7 @@ export function createTelegramNotifier(deps: TelegramNotifierDeps): NotifierPort
       const extra = ref.messageId != null ? { reply_parameters: { message_id: ref.messageId } } : undefined;
       await deps.bot.telegram.sendMessage(
         ref.chatId,
-        `Плейлист: ${summary.queued} в очереди, ${summary.cached} уже в кэше`,
+        t("playlist.queued", { queued: summary.queued, cached: summary.cached }),
         extra
       );
     },

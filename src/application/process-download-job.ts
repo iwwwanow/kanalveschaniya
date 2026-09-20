@@ -141,7 +141,8 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
         job,
         {
           ok: false,
-          error: `Трек "${result.resource.title}" превышает лимит ${limitMb}MB и был пропущен`,
+          error: `"${result.resource.title}" exceeds the ${limitMb}MB upload limit`,
+          resource: result.resource,
           blockReason: BlockReason.TooLarge,
           retryable: false,
         },

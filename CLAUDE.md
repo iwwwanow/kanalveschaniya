@@ -110,6 +110,14 @@ The `queue.error` field only keeps the last error.
 - Permanent failures (no retry): HTTP 404, geo restriction, DRM, over 50MB — the job goes to `failed`, the
   user is notified (`NotifierPort`)
 
+## Bot texts
+
+Every user-facing text lives in `src/infrastructure/localization/telegram.localization.json` (flat keys, e.g.
+`message.queued`, `failure.geo`); code reads them through `t(key, params)` (`localization/t.ts`). Edit the JSON freely:
+a text may use `{placeholders}` from the list in `TEXT_PARAMS` (`t.ts`) — fewer than listed is fine, unknown ones fail
+`assertTextsValid()` on startup. Adding a text = a key in the JSON + an entry in `TEXT_PARAMS`; removing a key still used
+in code fails `tsc`. `tests/localization.test.ts` checks the file.
+
 ## Downloader
 
 - Audio → mp3 (yt-dlp `-x --audio-format mp3 --audio-quality 0`)

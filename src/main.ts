@@ -1,6 +1,7 @@
 import { mkdirSync } from "fs";
 import { join } from "path";
 import { logger } from "./logger";
+import { assertTextsValid } from "./infrastructure/localization/t";
 import { config } from "./config";
 import { openAppDb } from "./infrastructure/db/app-db";
 import { openTelegramDb } from "./infrastructure/db/telegram-db";
@@ -24,6 +25,9 @@ import { createProcessDownloadJob } from "./application/process-download-job";
 import { createBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePoller } from "./infrastructure/workers/queue-poller";
+
+// Fail on boot (not mid-reply) if telegram.localization.json was edited into an invalid state.
+assertTextsValid();
 
 // DATA_DIR handling preserved as-is (read directly, not via config.ts) — resolves
 // app.db + telegram.db.
@@ -51,7 +55,7 @@ const bot = createBot({
   users,
 });
 
-const notifier = createTelegramNotifier({ bot, replyRefs });
+const notifier = createTelegramNotifier({ bot, replyRefs, maxFileSizeBytes: config.maxFileSizeBytes });
 
 const caches: ResourceCachePort[] = [];
 const archives: ResourceStorePort[] = [];

@@ -26,7 +26,7 @@ export function createRecoverStuckJobs(deps: RecoverStuckJobsDeps): RecoverStuck
       const retries = job.retries + 1;
 
       if (retries >= MAX_RETRIES) {
-        const error = "Скачивание несколько раз подряд приводило к сбою процесса — попытки прекращены.";
+        const error = `the process crashed while downloading this job ${retries} time(s) — giving up`;
         await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
           retries,
           error,

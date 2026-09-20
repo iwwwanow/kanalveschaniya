@@ -3,6 +3,7 @@ import { message, channelPost } from "telegraf/filters";
 import { config } from "../../config";
 import { logger } from "../../logger";
 import { extractUrls } from "./extract-url";
+import { t } from "../localization/t";
 import type { EnqueueDownloadFn } from "../../application/enqueue-download";
 import type { GetUserQueueStatusFn } from "../../application/get-user-queue-status";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
@@ -35,10 +36,7 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
   let listeningEnabled = false;
 
   bot.start((ctx) => {
-    ctx.reply(
-			// mv all messages to telegram.localization.json
-      "Привет! Отправь мне ссылку на трек или плейлист (SoundCloud, YouTube, Bandcamp и др.) и я скачаю его для тебя."
-    );
+    ctx.reply(t("start"));
   });
 
   bot.command("status", async (ctx) => {
@@ -46,34 +44,34 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
     const entries = Object.entries(counts);
 
     if (entries.length === 0) {
-      await ctx.reply("Очередь пуста");
+      await ctx.reply(t("queue.empty"));
       return;
     }
 
-    await ctx.reply(entries.map(([status, count]) => `${status}: ${count}`).join("\n"));
+    await ctx.reply(entries.map(([status, count]) => t("queue.line", { status, count })).join("\n"));
   });
 
   bot.command("listen_channel", async (ctx) => {
     if (!(await isChannelAdmin(bot, ctx.from.id))) {
-      await ctx.reply("Команда доступна только администраторам канала");
+      await ctx.reply(t("channel.admin_only"));
       return;
     }
     listeningEnabled = !listeningEnabled;
-    await ctx.reply(listeningEnabled ? "Слушаю канал" : "Больше не слушаю канал");
+    await ctx.reply(t(listeningEnabled ? "channel.listening_on" : "channel.listening_off"));
   });
 
   bot.command("handle_channel_history", async (ctx) => {
     if (!(await isChannelAdmin(bot, ctx.from.id))) {
-      await ctx.reply("Команда доступна только администраторам канала");
+      await ctx.reply(t("channel.admin_only"));
       return;
     }
-    await ctx.reply("Пока не реализовано — нужен MTProto-клиент (userbot) для чтения истории канала.");
+    await ctx.reply(t("channel.history_not_implemented"));
   });
 
   bot.on(message("text"), async (ctx) => {
     const urls = extractUrls(ctx.message.text);
     if (urls.length === 0) {
-      await ctx.reply("Отправь ссылку на трек или плейлист");
+      await ctx.reply(t("message.no_url"));
       return;
     }
 
@@ -92,13 +90,11 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
     }
 
     if (urls.length === 1) {
-      await ctx.reply(duplicates === 1 ? "Уже в очереди" : "Добавлено в очередь");
+      await ctx.reply(t(duplicates === 1 ? "message.duplicate" : "message.queued"));
       return;
     }
     await ctx.reply(
-      duplicates > 0
-        ? `Добавлено в очередь: ${queued}, уже в очереди: ${duplicates}`
-        : `Добавлено в очередь: ${queued}`
+      duplicates > 0 ? t("message.queued_many_with_duplicates", { queued, duplicates }) : t("message.queued_many", { queued }),
     );
   });
 
