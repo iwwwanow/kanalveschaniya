@@ -4,7 +4,7 @@ import type { DownloadResult } from "../../domain/download";
 import type { NotifierPort } from "../../domain/notifier";
 import { BlockReason } from "../../domain/block-reason";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
-import { sendMedia } from "./telegram-send-media";
+import { sendMedia } from "./telegram-client/send-media";
 
 export interface TelegramNotifierDeps {
   bot: Telegraf;

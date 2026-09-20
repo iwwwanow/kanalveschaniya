@@ -4,7 +4,7 @@ import type { Track, ResourceRepository } from "../../domain/resource";
 import type { TrackCachePort } from "../../domain/track-cache";
 import type { TelegramTrackRefsRepository } from "../repository/telegram-track-refs.interfaces";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
-import { sendMedia } from "./telegram-send-media";
+import { sendMedia } from "./telegram-client/send-media";
 
 export interface TelegramChannelCacheDeps {
   bot: Telegraf;
