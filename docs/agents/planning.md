@@ -76,7 +76,7 @@ Telegram-бот для скачивания музыки/видео через y
       и на свежей БД. **Не откатывается на старый образ** — перед деплоем на Pi сделать копию `DATA_DIR`.
 - [x] **11. Диаграммы.** Обновить `core.d2` (`vars.d2-config.layout-engine`, `direction`, убрать/пометить
       `telegram_send_queue`, реальные имена узлов, `telegram-notifier`, `recover-stuck-jobs`, `health-server`,
-      `db`, `main` как composition root) и написать `docs/diagrams/infrastructure.d2` (три шва Telegram:
+      `db`, `main` как composition root) и написать детализацию infrastructure — итог: две небольшие диаграммы `core_infrastructure_ports.d2` и `core_infrastructure_telegram.d2` вместо одной большой (три шва Telegram:
       вход, выход, хранилище/доставка). Делать после шагов 1–8 — чтобы не рисовать протечки, которые убираем.
 - [ ] **12. Drizzle** — после шагов 2–4, когда весь SQL окажется внутри репозиториев (см. P2).
 

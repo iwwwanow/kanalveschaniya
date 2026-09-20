@@ -1,0 +1,43 @@
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
+
+direction: down
+
+# Вопрос диаграммы: где Telegram подключается к приложению. Три шва:
+# вход (ссылка от пользователя), выход (сообщение пользователю), хранилище + доставка (канал).
+
+user: "пользователь (чат с ботом)"
+channel: "приватный канал"
+
+application: {
+  enqueue-download
+  process-download-job
+}
+
+telegram: {
+  telegram-handlers: "telegram-handlers\n(вход)"
+  telegram-notifier: "telegram-notifier\n(выход)"
+  telegram-channel-cache: "telegram-channel-cache\n(хранилище + доставка)"
+}
+
+telegram-db: "telegram.db" {
+  reply-refs: "reply-refs\n(job -> чат/сообщение)"
+  resource-refs: "resource-refs\n(resource -> сообщение в канале)"
+}
+
+user -> telegram.telegram-handlers: ссылка
+telegram.telegram-handlers -> application.enqueue-download
+telegram.telegram-handlers -> telegram-db.reply-refs: "запоминает, куда отвечать"
+
+application.process-download-job -> telegram.telegram-notifier: "notify (ошибка, плейлист, прямая отправка)"
+telegram.telegram-notifier -> user: "sendMessage / sendAudio"
+telegram.telegram-notifier -> telegram-db.reply-refs: читает
+
+application.process-download-job -> telegram.telegram-channel-cache: "save / deliver"
+telegram.telegram-channel-cache -> channel: "upload"
+telegram.telegram-channel-cache -> user: "forward из канала"
+telegram.telegram-channel-cache -> telegram-db.resource-refs: "пишет / читает"
+telegram.telegram-channel-cache -> telegram-db.reply-refs: читает

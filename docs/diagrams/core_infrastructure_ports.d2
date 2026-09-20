@@ -1,0 +1,38 @@
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
+
+direction: down
+
+# Вопрос диаграммы: какая часть infrastructure подключена к какому порту домена.
+# (Что вызывает порты — process-download-job; связку делает main.ts.)
+
+application.process-download-job
+
+domain: {
+  ports: {
+    downloader
+    notifier
+    resource-store
+    resource-cache: "resource-cache\n(resource-store + delivery)"
+  }
+}
+
+infrastructure: {
+  yt-dlp
+  telegram-notifier
+  fs-cache-adapter
+  telegram-channel-cache
+}
+
+application.process-download-job -> domain.ports.downloader: uses
+application.process-download-job -> domain.ports.notifier: uses
+application.process-download-job -> domain.ports.resource-store: "save (archives)"
+application.process-download-job -> domain.ports.resource-cache: "find / save / deliver (caches)"
+
+infrastructure.yt-dlp -> domain.ports.downloader: implements
+infrastructure.telegram-notifier -> domain.ports.notifier: implements
+infrastructure.fs-cache-adapter -> domain.ports.resource-store: implements
+infrastructure.telegram-channel-cache -> domain.ports.resource-cache: implements
