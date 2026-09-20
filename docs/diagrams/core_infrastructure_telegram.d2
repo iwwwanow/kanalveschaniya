@@ -6,7 +6,8 @@ vars: {
 
 direction: down
 
-# Вопрос: где Telegram подключается к приложению? Три шва.
+# Вопрос: как infrastructure подключается к приложению? Telegram — три шва (вход, выход,
+# хранилище + доставка), плюс воркер, который запускает обработку задач (не Telegram).
 # Все стрелки — зависимости в коде и идут сверху вниз (внутрь). Состояние (telegram.db)
 # и обмен с Bot API сюда не входят.
 
@@ -14,6 +15,10 @@ telegram: {
   telegram-handlers: "telegram-handlers\n(вход)"
   telegram-notifier: "telegram-notifier\n(выход)"
   telegram-channel-cache: "telegram-channel-cache\n(хранилище + доставка)"
+}
+
+workers: {
+  queue-poller
 }
 
 application: {
@@ -27,6 +32,7 @@ domain.ports: {
 }
 
 telegram.telegram-handlers -> application.enqueue-download
+workers.queue-poller -> application.process-download-job
 telegram.telegram-notifier -> domain.ports.notifier: implements
 telegram.telegram-channel-cache -> domain.ports.resource-cache: implements
 application.process-download-job -> domain.ports.notifier: uses
