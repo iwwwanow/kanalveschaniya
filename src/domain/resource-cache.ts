@@ -10,7 +10,9 @@ export interface ResourceStorePort {
   // process-download-job.ts, где каждый save()/deliver() логируется отдельно.
   readonly name: string;
   find(resourceId: string): Promise<Resource | null>;
-  save(resource: Resource, filePath: string): Promise<void>;
+  // jobId — opaque, как у deliver: даёт реализации контекст запроса (например Telegram-кэш
+  // прикладывает к файлу исходное сообщение пользователя); большинству сторов не нужен.
+  save(resource: Resource, filePath: string, jobId: number): Promise<void>;
 }
 
 // Раздать уже сохранённый трек пользователю через backend, где он лежит. Не обобщается на

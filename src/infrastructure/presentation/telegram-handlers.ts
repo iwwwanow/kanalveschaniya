@@ -108,6 +108,11 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
     // caption happens to contain a URL.
     if ("reply_to_message" in post && post.reply_to_message) return;
 
+    // The bot forwards the user's original message into this channel next to the file
+    // (telegram-channel-cache.save); its text usually holds the very link that was just
+    // processed — a forward is never a new request.
+    if ("forward_origin" in post && post.forward_origin) return;
+
     const text = "text" in post ? post.text : "caption" in post ? post.caption : undefined;
     if (!text) return;
 

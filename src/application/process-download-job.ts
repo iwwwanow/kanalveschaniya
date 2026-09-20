@@ -170,7 +170,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       for (const store of deps.caches) {
         try {
           log.info(`job ${job.id} | store=${store.name} | save start`);
-          await store.save(result.resource, result.filePath);
+          await store.save(result.resource, result.filePath, job.id);
           log.info(`job ${job.id} | store=${store.name} | save done`);
         } catch (err) {
           deliveryErrors.push(`${store.name} save: ${errorMessage(err)}`);
@@ -188,7 +188,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       for (const store of deps.archives) {
         try {
           log.info(`job ${job.id} | store=${store.name} | save start`);
-          await store.save(result.resource, result.filePath);
+          await store.save(result.resource, result.filePath, job.id);
           log.info(`job ${job.id} | store=${store.name} | save done`);
         } catch (err) {
           const message = `archive ${store.name} save failed: ${errorMessage(err)}`;

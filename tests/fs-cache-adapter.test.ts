@@ -22,7 +22,7 @@ describe("fs-cache-adapter as an archive", () => {
     writeFileSync(source, "audio-bytes");
     const resource: Resource = { resourceId: "abc", url: "http://x", title: "A/B: mix?", duration: 5 };
 
-    await adapter.save(resource, source);
+    await adapter.save(resource, source, 1);
     const found = await adapter.findFile("abc");
 
     expect(found?.resource).toEqual(resource);
@@ -38,7 +38,7 @@ describe("fs-cache-adapter as an archive", () => {
 
     const source = join(tmpDir(), "in.mp3");
     writeFileSync(source, "x");
-    await adapter.save({ resourceId: "r", url: "u", title: "t", duration: 1 }, source);
+    await adapter.save({ resourceId: "r", url: "u", title: "t", duration: 1 }, source, 1);
     stored.clear(); // metadata lost, file still on disk
     expect(await adapter.findFile("r")).toBeNull();
   });
@@ -48,7 +48,7 @@ describe("fs-cache-adapter as an archive", () => {
     const source = join(tmpDir(), "in.mp4");
     writeFileSync(source, "video");
     const resource: Resource = { resourceId: "v1", url: "u", title: "clip", duration: 9 };
-    await adapter.save(resource, source);
+    await adapter.save(resource, source, 1);
 
     expect(await adapter.find("v1")).toEqual(resource);
     expect((await adapter.findFile("v1"))?.filePath.endsWith("_v1.mp4")).toBe(true);

@@ -55,7 +55,8 @@ interface NotifierPort {
 interface ResourceStorePort {
   readonly name: string;
   find(resourceId: string): Promise<Resource | null>;
-  save(resource: Resource, filePath: string): Promise<void>;
+  // jobId — opaque, как у deliver (Telegram-кэш прикладывает к файлу исходное сообщение пользователя)
+  save(resource: Resource, filePath: string, jobId: number): Promise<void>;
 }
 
 // Раздать уже сохранённый ресурс пользователю. Не обобщается на произвольный store —

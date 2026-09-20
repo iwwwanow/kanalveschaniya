@@ -47,7 +47,7 @@ export function createFsCacheAdapter(deps: FsCacheAdapterDeps): ResourceArchiveP
       return resource ? { resource, filePath } : null;
     },
 
-    async save(resource: Resource, filePath: string) {
+    async save(resource: Resource, filePath: string, _jobId: number) {
       const isVideo = filePath.endsWith(".mp4");
       const ext = isVideo ? "mp4" : "mp3";
       const destDir = join(deps.contentDir, ext);
