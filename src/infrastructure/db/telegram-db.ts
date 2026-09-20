@@ -1,13 +1,20 @@
 // why we dont use drizze with schema & migrations?
 import { Database } from "bun:sqlite";
 import { join } from "path";
+import { renameColumnIfExists, renameTableIfExists } from "./schema-utils";
 
-// telegram.db — telegram-owned: telegram_reply_refs, telegram_track_refs, users.
+// telegram.db — telegram-owned: telegram_reply_refs, telegram_resource_refs, users.
 // Private zone of infra/{presentation,adapters,repository} — domain/application don't
 // know this file exists.
 export function openTelegramDb(dataDir: string): Database {
   const db = new Database(join(dataDir, "telegram.db"), { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
+
+  // Track -> Resource rename (2026-09): converts existing databases, no-op on fresh ones.
+  db.transaction(() => {
+    renameTableIfExists(db, "telegram_track_refs", "telegram_resource_refs");
+    renameColumnIfExists(db, "telegram_resource_refs", "track_id", "resource_id");
+  })();
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS telegram_reply_refs (
@@ -16,8 +23,8 @@ export function openTelegramDb(dataDir: string): Database {
       message_id INTEGER
     );
 
-    CREATE TABLE IF NOT EXISTS telegram_track_refs (
-      track_id           TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS telegram_resource_refs (
+      resource_id        TEXT PRIMARY KEY,
       channel_message_id INTEGER NOT NULL
     );
 

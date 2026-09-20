@@ -65,8 +65,10 @@ Telegram-бот для скачивания музыки/видео через y
 - [x] **B. Удалён `migrate-legacy`** (одноразовая миграция `bot.db` → `app.db`, на проде давно no-op; код в git-истории, тег `v2.0.3`).
 - [x] **A. `too_large`**: теперь `failed` + `blockReason=too_large` (раньше `done` без причины).
 - [x] **Доки синхронизированы:** `CLAUDE.md` (структура, БД, env, без `geo_blocked`), `docs/specs/types.md` (Resource, enum'ы, `DeliveryPort`).
-- [ ] **10. (решение) Переименовывать ли колонки БД** (`queue.track_id`, `telegram_track_refs.track_id`) —
-      требует миграции на боевых данных. Пока не решено; вариант «оставить как исторический артефакт схемы».
+- [x] **10. Колонки БД переименованы** (`queue.track_id`/`resource.track_id` → `resource_id`,
+      `telegram_track_refs` → `telegram_resource_refs`, её `track_id` → `resource_id`). Идемпотентно на старте
+      (`infrastructure/db/schema-utils.ts`), проверено на копии БД со старой схемой и данными, повторным запуском
+      и на свежей БД. **Не откатывается на старый образ** — перед деплоем на Pi сделать копию `DATA_DIR`.
 - [x] **11. Диаграммы.** Обновить `core.d2` (`vars.d2-config.layout-engine`, `direction`, убрать/пометить
       `telegram_send_queue`, реальные имена узлов, `telegram-notifier`, `recover-stuck-jobs`, `health-server`,
       `db`, `main` как composition root) и написать `docs/diagrams/infrastructure.d2` (три шва Telegram:

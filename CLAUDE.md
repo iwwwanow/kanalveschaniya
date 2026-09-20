@@ -71,10 +71,13 @@ channel; enabled by `CACHE_TO_CHANNEL`) and `archives` (`ResourceStorePort`: sto
 
 Two SQLite files in `DATA_DIR` (default `./data`), WAL mode:
 - `app.db` — `queue`, `resource`, `error_log`, `migrations`
-- `telegram.db` — `telegram_reply_refs`, `telegram_track_refs`, `users`, `migrations`
+- `telegram.db` — `telegram_reply_refs`, `telegram_resource_refs`, `users`, `migrations`
 
-The SQL column/table names `track_id` / `telegram_track_refs` are historical: in code the same thing is
-`resourceId` (mapping lives in the repositories).
+The resource id column is `resource_id` everywhere (`queue`, `resource`, `telegram_resource_refs`). Databases
+created before 2026-09 (`track_id`, `telegram_track_refs`) are converted on startup by the idempotent
+`renameColumnIfExists`/`renameTableIfExists` in `src/infrastructure/db/schema-utils.ts`, called from
+`openAppDb`/`openTelegramDb` before the `CREATE TABLE IF NOT EXISTS`. Not backward compatible: an older
+image can't read a converted database — back up `DATA_DIR` before deploying.
 
 **queue.status values**: `pending` | `processing` | `done` | `failed` (`QueueStatus` enum in `domain/queue.ts`)
 

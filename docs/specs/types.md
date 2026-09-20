@@ -111,7 +111,7 @@ Port, не Repository. Реализация (`infra/telegram/channel-cache`) м�
 `find`/`save` по массиву реализаций вместо инлайнового кода.
 
 `deliver(track, jobId)` в эту идею **не укладывается**: она физически завязана на
-Telegram-специфичные данные (`telegram_track_refs`/`channelId` для `forwardMessage`), к
+Telegram-специфичные данные (`telegram_resource_refs`/`channelId` для `forwardMessage`), к
 которым у fs-стора нет и не может быть доступа — «доставка» локального файла
 пользователю всё равно идёт через Telegram, не через сам fs. Обобщать `deliver` на
 произвольный store — фиктивная абстракция (no-op или заглушка на не-telegram
@@ -136,14 +136,14 @@ Application получает сторы двумя **типизированны�
 Реализовано (не только спроектировано) — `fs-cache-adapter.ts` (`ResourceStorePort`,
 сохраняет в `content/{mp3,mp4}/{sanitizeTitle(title)}_{resourceId}.{ext}` — человекочитаемое
 имя + resourceId в суффиксе; `find()` сканирует директорию через `readdir` и матчит по
-суффиксу `_{resourceId}.{ext}`, без отдельного индекса path-по-track_id) вынес прежний
+суффиксу `_{resourceId}.{ext}`, без отдельного индекса path-по-resource_id) вынес прежний
 инлайновый `fs`-код из `application/process-download-job.ts`. Cache-hit-проверка в
 application — `findDeliverable(resourceId)`: чистый lookup (не отправляет ничего сам),
 вызывающий код явным отдельным вызовом делает `store.deliver(track, jobId)`.
 `telegram-channel-cache.ts` не менялся по сути — как реализовывал все три метода, так и
 реализовывает; один объект просто удовлетворяет обоим интерфейсам (TS structural typing).
 Единственная правка в самой реализации — `find()` там стал сначала проверять
-`telegram_track_refs` (backend-proof), а не сразу общую `resource`-таблицу, — иначе с
+`telegram_resource_refs` (backend-proof), а не сразу общую `resource`-таблицу, — иначе с
 появлением второго писателя в `resource` (fs-стор) `find()` мог бы соврать "есть в
 канале" для трека, закэшированного только на диске, и `deliver()` падал бы. Подробности —
 `docs/diary/2026-08-23_infra-restructure-plan.md`, секция «Ревизия — 2026-08-24».
@@ -196,7 +196,7 @@ type TelegramReplyRef = {
   messageId: number;
 };
 
-// track_id → где лежит уже закэшированный файл в канале. Backing store для ResourceCachePort.
+// resource_id → где лежит уже закэшированный файл в канале. Backing store для ResourceCachePort.
 type TelegramTrackRef = {
   resourceId: string;
   channelMessageId: number;
@@ -212,7 +212,7 @@ type TelegramSendQueueItem = {
 };
 ```
 
-Все три таблицы (`telegram_reply_refs`, `telegram_track_refs`, `telegram_send_queue`)
+Все три таблицы (`telegram_reply_refs`, `telegram_resource_refs`, `telegram_send_queue`)
 живут в отдельной физической БД `data/telegram.db` — подробности и обоснование в диари,
 секция «две физические SQLite-БД вместо одной».
 
@@ -224,6 +224,6 @@ type TelegramSendQueueItem = {
       только сигнатуры, реализации ещё не начаты
 - [ ] `telegram_send_queue` — таблица и `infra/telegram/workers/send-queue-poller.ts`
       спроектированы, не реализованы (см. диари)
-- [ ] `telegram_track_refs` — новая таблица, нужна миграция при рефакторинге: сейчас
+- [ ] `telegram_resource_refs` — новая таблица, нужна миграция при рефакторинге: сейчас
       `channel_message_id` живёт прямо в generic `tracks` (см. диари, секция аудита
       архитектуры — находка №1)

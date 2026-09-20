@@ -6,7 +6,7 @@ import { parseBlockReason } from "../../domain/block-reason";
 interface QueueRow {
   id: number;
   url: string;
-  track_id: string | null;
+  resource_id: string | null;
   user_id: number;
   status: QueueStatus;
   block_reason: string | null;
@@ -20,7 +20,7 @@ function toQueueItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
     url: row.url,
-    resourceId: row.track_id,
+    resourceId: row.resource_id,
     userId: row.user_id,
     status: row.status,
     error: row.error,
@@ -34,7 +34,7 @@ function toQueueItem(row: QueueRow): QueueItem {
 export function createQueueRepository(db: Database): QueueRepository {
   return {
     async enqueue(item) {
-      const result = db.run(`INSERT INTO queue (url, user_id, track_id) VALUES (?, ?, ?)`, [
+      const result = db.run(`INSERT INTO queue (url, user_id, resource_id) VALUES (?, ?, ?)`, [
         item.url,
         item.userId,
         item.resourceId ?? null,
@@ -54,7 +54,7 @@ export function createQueueRepository(db: Database): QueueRepository {
     async findPendingByResourceId(resourceId) {
       const row = db
         .query<QueueRow, [string]>(
-          `SELECT * FROM queue WHERE track_id = ? AND status IN ('pending', 'processing') ORDER BY id ASC LIMIT 1`
+          `SELECT * FROM queue WHERE resource_id = ? AND status IN ('pending', 'processing') ORDER BY id ASC LIMIT 1`
         )
         .get(resourceId);
       return row ? toQueueItem(row) : null;

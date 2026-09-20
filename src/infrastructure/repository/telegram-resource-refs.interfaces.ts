@@ -1,4 +1,4 @@
-// track_id → где лежит уже закэшированный файл в канале. Backing store для ResourceCachePort.
+// resource_id → где лежит уже закэшированный файл в канале. Backing store для ResourceCachePort.
 export interface TelegramResourceRef {
   resourceId: string;
   channelMessageId: number;

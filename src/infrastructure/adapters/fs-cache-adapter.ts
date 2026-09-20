@@ -11,7 +11,7 @@ export interface FsCacheAdapterDeps {
 const EXTENSIONS = ["mp3", "mp4"] as const;
 
 // title_resourceId.ext — человекочитаемо при просмотре папки руками, а resourceId в суффиксе
-// даёт find() искать по нему без отдельного индекса path-по-track_id (readdir + суффикс).
+// даёт find() искать по нему без отдельного индекса path-по-resource_id (readdir + суффикс).
 function sanitizeTitle(title: string): string {
   const cleaned = title.replace(/[/\\:*?"<>|\x00-\x1f]/g, "_").trim();
   return cleaned.slice(0, 150) || "track";
