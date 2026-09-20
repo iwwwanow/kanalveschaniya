@@ -8,6 +8,7 @@ export const config = {
   botToken: required("BOT_TOKEN"),
   channelId: required("CHANNEL_ID"),
   proxy: process.env.PROXY,
+  ytDlpPath: process.env.YT_DLP_PATH ?? "yt-dlp",
   tmpDir: process.env.TMP_DIR ?? "/tmp/ytdlp",
   contentDir: process.env.CONTENT_DIR ?? "./content",
 	// can we use boolean(required("CHANNEL_ID")) instead it?
@@ -18,11 +19,18 @@ export const config = {
   workerIntervalMs: 5_000,
   healthPort: Number(process.env.HEALTH_PORT ?? 3000),
   maxFileSizeBytes: 50 * 1024 * 1024, // 50MB Telegram limit
+  // Audio longer than this is refused before downloading. Unset = derived from maxFileSizeBytes
+  // (see infrastructure/adapters/yt-dlp-limits.ts, ≈28 min for 50MB).
+  maxTrackDurationSeconds: process.env.MAX_TRACK_DURATION_SECONDS ? Number(process.env.MAX_TRACK_DURATION_SECONDS) : undefined,
   // Incident 2026-08-26: a pasted playlist link fanned out into 1800+ queued jobs and
   // starved the Pi. Playlists refused by default; set ALLOW_PLAYLIST_DOWNLOADS=true to
   // re-enable once the hardware can take it.
   allowPlaylistDownloads: process.env.ALLOW_PLAYLIST_DOWNLOADS === "true",
 };
+
+if (config.maxTrackDurationSeconds !== undefined && !(config.maxTrackDurationSeconds > 0)) {
+  throw new Error("MAX_TRACK_DURATION_SECONDS must be a positive number of seconds");
+}
 
 if (!config.cacheToChannel && !config.saveToContentDir) {
   throw new Error("At least one of CACHE_TO_CHANNEL or SAVE_TO_CONTENT_DIR must be true — media has to be stored somewhere");

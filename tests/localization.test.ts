@@ -62,6 +62,20 @@ describe("telegram-notifier failure texts", () => {
     expect(sent[0]).toContain("50");
   });
 
+  test("too_long text names the track, its length in minutes and the limit", async () => {
+    const { sent, notifier } = capture();
+    await notifier.notify(1, {
+      ok: false,
+      error: "technical",
+      retryable: false,
+      blockReason: BlockReason.TooLong,
+      resource: { resourceId: "r", url: "u", title: "Hour mix", duration: 3600 },
+    });
+    expect(sent[0]).toContain("Hour mix");
+    expect(sent[0]).toContain("60");
+    expect(sent[0]).toContain("50");
+  });
+
   test("404 and unknown failures use their own texts", async () => {
     const a = capture();
     await a.notifier.notify(1, { ok: false, error: "HTTP Error 404: Not Found", retryable: false });

@@ -83,8 +83,8 @@ image can't read a converted database — back up `DATA_DIR` before deploying.
 **queue.status values**: `pending` | `processing` | `done` | `failed` (`QueueStatus` enum in `domain/queue.ts`)
 
 **queue.block_reason** (`BlockReason` enum in `domain/block-reason.ts`) — why a job was permanently stopped:
-`geo` (geo-restricted), `drm`, `too_large` (over the 50MB Bot API limit), `crashed_repeatedly` (the process
-died mid-download MAX_RETRIES times). Such jobs are `failed` with the reason set.
+`geo` (geo-restricted), `drm`, `too_large` (over the 50MB Bot API limit), `too_long` (audio whose duration alone can't fit the limit, refused before downloading), `crashed_repeatedly` (the
+process died mid-download MAX_RETRIES times). Such jobs are `failed` with the reason set.
 - With `PROXY` configured, on startup all jobs with `block_reason = 'geo'` are requeued to `pending`, staggered
   30s apart (`requeueBlockedJobs` in `main.ts`).
 - `processing` jobs from a crashed run are recovered on startup by `recoverStuckJobs`: the crash counts as an
@@ -141,6 +141,8 @@ in code fails `tsc`. `tests/localization.test.ts` checks the file.
 | `TMP_DIR` | no | Temp dir for downloads (default `/tmp/ytdlp`) |
 | `DATA_DIR` | no | Directory for `app.db` + `telegram.db` (default `./data`, read directly in `main.ts`) |
 | `HEALTH_PORT` | no | Port of the `/healthz` liveness endpoint (default 3000) |
+| `YT_DLP_PATH` | no | yt-dlp executable (default `yt-dlp` from PATH) |
+| `MAX_TRACK_DURATION_SECONDS` | no | Audio longer than this is refused before downloading (default: derived from the 50MB limit, ≈28 min at mp3 quality 0) |
 | `ALLOW_PLAYLIST_DOWNLOADS` | no | Playlists are rejected unless `true` (default `false`; set after the 1800-track incident) |
 
 ## CI/CD

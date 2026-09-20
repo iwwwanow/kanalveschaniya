@@ -3,7 +3,8 @@
 export enum BlockReason {
   Geo = "geo",
   Drm = "drm",
-  TooLarge = "too_large",
+  TooLarge = "too_large", // the downloaded file exceeds the upload limit
+  TooLong = "too_long", // predicted before downloading: the duration alone won't fit the limit
   CrashedRepeatedly = "crashed_repeatedly",
 }
 

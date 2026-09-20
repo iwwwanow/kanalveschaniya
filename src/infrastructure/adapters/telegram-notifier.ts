@@ -21,6 +21,7 @@ const BLOCK_REASON_TEXT: Record<BlockReason, TextKey> = {
   [BlockReason.Geo]: "failure.geo",
   [BlockReason.Drm]: "failure.drm",
   [BlockReason.TooLarge]: "failure.too_large",
+  [BlockReason.TooLong]: "failure.too_long",
   [BlockReason.CrashedRepeatedly]: "failure.crashed_repeatedly",
 };
 
@@ -28,6 +29,7 @@ function formatFailureMessage(result: FailureResult, maxFileSizeBytes: number): 
   if (result.blockReason) {
     return t(BLOCK_REASON_TEXT[result.blockReason], {
       title: result.resource?.title ?? "",
+      duration_min: Math.round((result.resource?.duration ?? 0) / 60),
       limit_mb: Math.round(maxFileSizeBytes / 1024 / 1024),
     });
   }

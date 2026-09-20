@@ -4,6 +4,7 @@ import { config } from "../../config";
 import type { Resource } from "../../domain/resource";
 import type { DownloadResult, DownloaderPort } from "../../domain/download";
 import { BlockReason } from "../../domain/block-reason";
+import { maxAudioDurationSeconds } from "./yt-dlp-limits";
 
 mkdirSync(config.tmpDir, { recursive: true });
 
@@ -38,7 +39,7 @@ function isDrmProtected(error: string): boolean {
 
 async function spawnYtDlp(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const baseArgs = config.proxy ? ["--proxy", config.proxy] : [];
-  const proc = Bun.spawn(["yt-dlp", ...baseArgs, ...args], { stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn([config.ytDlpPath, ...baseArgs, ...args], { stdout: "pipe", stderr: "pipe" });
 
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -112,6 +113,19 @@ export function createYtDlpDownloader(): DownloaderPort {
         }
 
         const isVideo = !!meta.vcodec && meta.vcodec !== "none";
+
+        // Refuse before spending minutes on a download that the post-download size check would
+        // reject anyway. Audio only — a video's size can't be estimated from its duration.
+        const maxDuration = maxAudioDurationSeconds(config.maxFileSizeBytes, config.maxTrackDurationSeconds);
+        if (!isVideo && meta.duration && meta.duration > maxDuration) {
+          return {
+            ok: false,
+            error: `duration ${meta.duration}s exceeds the ${maxDuration}s that fits the ${config.maxFileSizeBytes}-byte upload limit`,
+            blockReason: BlockReason.TooLong,
+            retryable: false,
+            resource: metaToResource(meta),
+          };
+        }
         const outputTemplate = join(config.tmpDir, `${meta.id}.%(ext)s`);
 
         if (isVideo) {
