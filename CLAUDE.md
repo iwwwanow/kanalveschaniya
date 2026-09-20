@@ -31,8 +31,8 @@ bun run typecheck
 ## Architecture
 
 Clean architecture: dependencies point inward — `infrastructure -> application -> domain`. Diagrams:
-`docs/diagrams/core.d2` (layers and ports), `core_infrastructure_ports.d2` (which infra implements which port)
-and `core_infrastructure_telegram.d2` (where Telegram plugs in). One diagram = one question, ≤ ~12 nodes.
+`docs/diagrams/core.d2` (layers and ports), `core.infrastructure.ports.d2` (which infra implements which port)
+and `core.infrastructure.telegram.d2` (where Telegram plugs in). One diagram = one question, ≤ ~12 nodes.
 Types/ports spec — `docs/specs/types.md`.
 
 ```

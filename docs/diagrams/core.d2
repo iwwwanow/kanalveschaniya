@@ -7,7 +7,7 @@ vars: {
 direction: down
 
 # Зависимости направлены внутрь: infrastructure -> application -> domain.
-# Детали infrastructure — в core_infrastructure_ports.d2 и core_infrastructure_telegram.d2.
+# Детали infrastructure — в core.infrastructure.ports.d2 и core.infrastructure.telegram.d2.
 infrastructure.presentation -> application.use-cases
 infrastructure.workers -> application.use-cases
 infrastructure.repository.sqlite -> domain.repository: implements
