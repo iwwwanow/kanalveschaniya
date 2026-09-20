@@ -1,5 +1,4 @@
 import { unlink } from "fs/promises";
-import { config } from "../config";
 import { type QueueItem, type QueueRepository, QueueStatus, MAX_RETRIES, backoffSeconds } from "../domain/queue";
 import { BlockReason } from "../domain/block-reason";
 import type { Resource } from "../domain/resource";
@@ -19,6 +18,9 @@ export interface ProcessDownloadJobDeps {
   archives: ResourceStorePort[];
   notifier: NotifierPort;
   errorLog: ErrorLogRepository;
+  // Files above this are rejected as BlockReason.TooLarge (the limit itself — Telegram Bot API —
+  // is an infrastructure fact, so it is injected, not read from config here).
+  maxFileSizeBytes: number;
   // Playlist fan-out spawns brand-new queue jobs (application-owned, generic) that still
   // need a telegram delivery target when they complete independently later. Registering
   // that target is a telegram-infra concern, so it's injected as an opaque callback —
@@ -123,14 +125,15 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     log.info(`job ${job.id} | downloaded | ${result.resource.title}`);
 
     const fileSize = Bun.file(result.filePath).size;
-    if (fileSize > config.maxFileSizeBytes) {
+    if (fileSize > deps.maxFileSizeBytes) {
+      const limitMb = Math.round(deps.maxFileSizeBytes / 1024 / 1024);
       await unlink(result.filePath).catch(() => {});
-      log.warn(`job ${job.id} | skipped — exceeds 50MB | ${result.resource.title}`);
+      log.warn(`job ${job.id} | skipped — exceeds ${limitMb}MB | ${result.resource.title}`);
       await failPermanently(
         job,
         {
           ok: false,
-          error: `Трек "${result.resource.title}" превышает лимит 50MB и был пропущен`,
+          error: `Трек "${result.resource.title}" превышает лимит ${limitMb}MB и был пропущен`,
           blockReason: BlockReason.TooLarge,
           retryable: false,
         },

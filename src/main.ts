@@ -77,6 +77,7 @@ const processDownloadJob = createProcessDownloadJob({
   archives,
   notifier,
   errorLog,
+  maxFileSizeBytes: config.maxFileSizeBytes,
   registerPlaylistEntryOrigin: (childJobId, userId) => replyRefs.save(childJobId, userId, null),
 });
 
