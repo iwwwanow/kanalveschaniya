@@ -8,16 +8,19 @@
     "dev": "bun run --watch src/main.ts",
     "start": "bun run src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "db:generate": "drizzle-kit generate --config drizzle.app.config.ts && drizzle-kit generate --config drizzle.telegram.config.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.10"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "chalk": "^5.6.2",
+    "drizzle-orm": "^0.45.2",
     "telegraf": "^4.16.3"
   }
 }

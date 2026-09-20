@@ -14,7 +14,7 @@ Telegram bot that downloads music/video via yt-dlp and caches tracks in a privat
 
 - **Runtime**: Bun (TypeScript, no compilation step)
 - **Bot**: Telegraf
-- **DB**: SQLite via `bun:sqlite` — file at `data/bot.db`
+- **DB**: SQLite via `bun:sqlite` + Drizzle ORM (`drizzle-orm/bun-sqlite`), files `data/app.db` and `data/telegram.db`
 - **Downloader**: yt-dlp via `Bun.spawn` (no wrapper library)
 - **Colors/logging**: chalk
 
@@ -60,7 +60,7 @@ src/
     │                     # telegram-channel-cache (ResourceCachePort), fs-cache-adapter (ResourceStorePort),
     │                     # telegram-client/send-media (shared upload helper, implements no port)
     ├── repository/       # sqlite: queue, resource, error-log; telegram: reply-refs, resource-refs, users
-    ├── db/               # app-db.ts (app.db), telegram-db.ts (telegram.db) — schema + migrations
+    ├── db/               # app-db.ts / telegram-db.ts (open + migrate), schema/{app,telegram}.ts (Drizzle schema), schema-utils.ts
     └── workers/          # queue-poller (WORKER_CONCURRENCY parallel loops)
 ```
 
@@ -71,13 +71,18 @@ channel; enabled by `CACHE_TO_CHANNEL`) and `archives` (`ResourceStorePort`: sto
 ## Database
 
 Two SQLite files in `DATA_DIR` (default `./data`), WAL mode:
-- `app.db` — `queue`, `resource`, `error_log`, `migrations`
-- `telegram.db` — `telegram_reply_refs`, `telegram_resource_refs`, `users`, `migrations`
+- `app.db` — `queue`, `resource`, `error_log`
+- `telegram.db` — `telegram_reply_refs`, `telegram_resource_refs`, `users`
+
+Schema = Drizzle tables in `src/infrastructure/db/schema/`, migrations = SQL files in `drizzle/app/` and
+`drizzle/telegram/` (shipped in the Docker image), applied on startup by `migrate()` in `openAppDb`/`openTelegramDb`
+(journal table `__drizzle_migrations`). The `0000_baseline` migrations are `CREATE TABLE IF NOT EXISTS`, so they are a
+no-op on databases that predate Drizzle.
 
 The resource id column is `resource_id` everywhere (`queue`, `resource`, `telegram_resource_refs`). Databases
 created before 2026-09 (`track_id`, `telegram_track_refs`) are converted on startup by the idempotent
 `renameColumnIfExists`/`renameTableIfExists` in `src/infrastructure/db/schema-utils.ts`, called from
-`openAppDb`/`openTelegramDb` before the `CREATE TABLE IF NOT EXISTS`. Not backward compatible: an older
+`openAppDb`/`openTelegramDb` before the Drizzle migrations. Not backward compatible: an older
 image can't read a converted database — back up `DATA_DIR` before deploying.
 
 **queue.status values**: `pending` | `processing` | `done` | `failed` (`QueueStatus` enum in `domain/queue.ts`)
@@ -91,12 +96,10 @@ process died mid-download MAX_RETRIES times). Such jobs are `failed` with the re
   attempt; after `MAX_RETRIES` the job becomes `failed` / `crashed_repeatedly` and the user is notified.
 - `retry_after` — unix timestamp, job won't be claimed before this time (exponential backoff: 30s → 60s → 120s).
 
-**Adding a new column**: add one entry to the `migrations` array in `src/infrastructure/db/app-db.ts` (or
-`telegram-db.ts`). Applied migrations are tracked in the `migrations` table and skipped.
-
-```ts
-{ name: "my_migration_name", sql: "ALTER TABLE queue ADD COLUMN foo TEXT" }
-```
+**Changing the schema**: edit the table in `src/infrastructure/db/schema/{app,telegram}.ts`, run `bun run db:generate`
+(drizzle-kit writes the next SQL file into `drizzle/app` or `drizzle/telegram`), review it, commit schema + SQL + the
+`meta/` snapshot together. Repositories (`infrastructure/repository/`) are the only place that queries the tables; SQL the
+query builder can't express (`UPDATE … FROM` with a window function in `requeueByBlockReason`) stays raw via `sql`.
 
 **error_log** — every failed attempt is written here (`ErrorLogRepository`) with job_id, url, error, timestamp.
 The `queue.error` field only keeps the last error.

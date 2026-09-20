@@ -1,130 +1,115 @@
-// why we dont use drizzle?
 import type { Database } from "bun:sqlite";
+import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import { type QueueItem, type QueueRepository, QueueStatus } from "../../domain/queue";
 import { parseBlockReason } from "../../domain/block-reason";
+import { queueTable } from "../db/schema/app";
 
-interface QueueRow {
-  id: number;
-  url: string;
-  resource_id: string | null;
-  user_id: number;
-  status: QueueStatus;
-  block_reason: string | null;
-  retries: number;
-  retry_after: number | null;
-  error: string | null;
-  created_at: number;
-}
+type QueueRow = typeof queueTable.$inferSelect;
 
 function toQueueItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
     url: row.url,
-    resourceId: row.resource_id,
-    userId: row.user_id,
+    resourceId: row.resourceId,
+    userId: row.userId,
     status: row.status,
     error: row.error,
-    blockReason: parseBlockReason(row.block_reason),
+    blockReason: parseBlockReason(row.blockReason),
     retries: row.retries,
-    retryAfter: row.retry_after,
-    createdAt: row.created_at,
+    retryAfter: row.retryAfter,
+    createdAt: row.createdAt ?? 0,
   };
 }
 
+const ACTIVE = [QueueStatus.Pending, QueueStatus.Processing];
+
 export function createQueueRepository(db: Database): QueueRepository {
+  const orm = drizzle(db);
+
   return {
     async enqueue(item) {
-      const result = db.run(`INSERT INTO queue (url, user_id, resource_id) VALUES (?, ?, ?)`, [
-        item.url,
-        item.userId,
-        item.resourceId ?? null,
-      ]);
-      return Number(result.lastInsertRowid);
+      const row = orm
+        .insert(queueTable)
+        .values({ url: item.url, userId: item.userId, resourceId: item.resourceId ?? null })
+        .returning({ id: queueTable.id })
+        .get();
+      return row.id;
     },
 
     async findPendingByUrl(url) {
-      const row = db
-        .query<QueueRow, [string]>(
-          `SELECT * FROM queue WHERE url = ? AND status IN ('pending', 'processing') ORDER BY id ASC LIMIT 1`
-        )
-        .get(url);
+      const row = orm
+        .select()
+        .from(queueTable)
+        .where(and(eq(queueTable.url, url), inArray(queueTable.status, ACTIVE)))
+        .orderBy(asc(queueTable.id))
+        .limit(1)
+        .get();
       return row ? toQueueItem(row) : null;
     },
 
     async findPendingByResourceId(resourceId) {
-      const row = db
-        .query<QueueRow, [string]>(
-          `SELECT * FROM queue WHERE resource_id = ? AND status IN ('pending', 'processing') ORDER BY id ASC LIMIT 1`
-        )
-        .get(resourceId);
+      const row = orm
+        .select()
+        .from(queueTable)
+        .where(and(eq(queueTable.resourceId, resourceId), inArray(queueTable.status, ACTIVE)))
+        .orderBy(asc(queueTable.id))
+        .limit(1)
+        .get();
       return row ? toQueueItem(row) : null;
     },
 
     async claim() {
-      const row = db
-        .query<QueueRow, []>(
-          `SELECT * FROM queue
-           WHERE status = 'pending' AND (retry_after IS NULL OR retry_after <= unixepoch())
-           ORDER BY id ASC LIMIT 1`
+      const row = orm
+        .select()
+        .from(queueTable)
+        .where(
+          and(
+            eq(queueTable.status, QueueStatus.Pending),
+            or(isNull(queueTable.retryAfter), lte(queueTable.retryAfter, sql`unixepoch()`)),
+          ),
         )
+        .orderBy(asc(queueTable.id))
+        .limit(1)
         .get();
       if (!row) return null;
-      db.run(`UPDATE queue SET status = 'processing' WHERE id = ?`, [row.id]);
+      orm.update(queueTable).set({ status: QueueStatus.Processing }).where(eq(queueTable.id, row.id)).run();
       return toQueueItem({ ...row, status: QueueStatus.Processing });
     },
 
     async setResourceId(id, resourceId) {
-      db.run(`UPDATE queue SET resource_id = ? WHERE id = ?`, [resourceId, id]);
+      orm.update(queueTable).set({ resourceId }).where(eq(queueTable.id, id)).run();
     },
 
     async updateStatus(id, status, patch) {
-      const sets: string[] = ["status = ?"];
-      const values: Array<string | number | null> = [status];
-
-      if (patch) {
-        if (patch.error !== undefined) {
-          sets.push("error = ?");
-          values.push(patch.error);
-        }
-        if (patch.blockReason !== undefined) {
-          sets.push("block_reason = ?");
-          values.push(patch.blockReason);
-        }
-        if (patch.retries !== undefined) {
-          sets.push("retries = ?");
-          values.push(patch.retries);
-        }
-        if (patch.retryAfter !== undefined) {
-          sets.push("retry_after = ?");
-          values.push(patch.retryAfter);
-        }
-      }
-
-      values.push(id);
-      db.run(`UPDATE queue SET ${sets.join(", ")} WHERE id = ?`, values);
+      const set: Partial<typeof queueTable.$inferInsert> = { status };
+      if (patch?.error !== undefined) set.error = patch.error;
+      if (patch?.blockReason !== undefined) set.blockReason = patch.blockReason;
+      if (patch?.retries !== undefined) set.retries = patch.retries;
+      if (patch?.retryAfter !== undefined) set.retryAfter = patch.retryAfter;
+      orm.update(queueTable).set(set).where(eq(queueTable.id, id)).run();
     },
 
+    // Window function + UPDATE ... FROM: the query builder has no way to express it, so raw sql.
     async requeueByBlockReason(reason, newStatus, staggerSeconds = 0) {
-      db.run(
-        `UPDATE queue SET status = ?, retries = 0, error = NULL, block_reason = NULL,
-           retry_after = unixepoch() + ranked.rn * ?
-         FROM (SELECT id, (ROW_NUMBER() OVER (ORDER BY id) - 1) AS rn FROM queue WHERE block_reason = ?) AS ranked
-         WHERE queue.id = ranked.id`,
-        [newStatus, staggerSeconds, reason]
-      );
+      orm.run(sql`
+        UPDATE queue SET status = ${newStatus}, retries = 0, error = NULL, block_reason = NULL,
+          retry_after = unixepoch() + ranked.rn * ${staggerSeconds}
+        FROM (SELECT id, (ROW_NUMBER() OVER (ORDER BY id) - 1) AS rn FROM queue WHERE block_reason = ${reason}) AS ranked
+        WHERE queue.id = ranked.id`);
     },
 
     async findStuckProcessing() {
-      const rows = db.query<QueueRow, []>(`SELECT * FROM queue WHERE status = 'processing'`).all();
-      return rows.map(toQueueItem);
+      return orm.select().from(queueTable).where(eq(queueTable.status, QueueStatus.Processing)).all().map(toQueueItem);
     },
 
     async countByStatusForUser(userId) {
-      const rows = db
-        .query<{ status: string; count: number }, [number]>(
-          `SELECT status, COUNT(*) as count FROM queue WHERE user_id = ? GROUP BY status`
-        )
-        .all(userId);
+      const rows = orm
+        .select({ status: queueTable.status, count: sql<number>`count(*)` })
+        .from(queueTable)
+        .where(eq(queueTable.userId, userId))
+        .groupBy(queueTable.status)
+        .all();
       const result: Record<string, number> = {};
       for (const r of rows) result[r.status] = r.count;
       return result;

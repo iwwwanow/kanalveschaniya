@@ -1,6 +1,6 @@
 FROM oven/bun:1.3 AS deps
 WORKDIR /app
-COPY package.json bun.lockb* ./
+COPY package.json bun.lock* bun.lockb* ./
 RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:1.3 AS runtime
@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY src/ ./src/
+# SQL migrations (drizzle-kit output), applied on startup by openAppDb/openTelegramDb
+COPY drizzle/ ./drizzle/
 COPY tsconfig.json ./
 
 ENV NODE_ENV=production

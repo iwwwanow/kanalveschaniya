@@ -20,3 +20,5 @@
 Т.е. это чисто внутренняя замена одного infra-слоя, без данных-миграции и без риска для
 domain/application. Откладывать сейчас — не значит терять возможность сделать это позже
 дешевле.
+
+**Сделано (2026-09-20):** схемы — `src/infrastructure/db/schema/{app,telegram}.ts`, конфиги `drizzle.{app,telegram}.config.ts`, миграции `drizzle/{app,telegram}/` (baseline `0000` с `CREATE TABLE IF NOT EXISTS`, чтобы совпасть с существующими БД), репозитории переписаны на query builder внутри `infrastructure/repository/*` (контракты портов не менялись; тесты прошли без правок). Ручной массив миграций и `CREATE TABLE`-блоки удалены. `UPDATE … FROM` с оконной функцией (`requeueByBlockReason`) остался через `sql`. Разовое переименование `track_id → resource_id` (`schema-utils.ts`) выполняется до `migrate()`. В `Dockerfile` добавлен `COPY drizzle/`, lock-файл копируется как `bun.lock*`.

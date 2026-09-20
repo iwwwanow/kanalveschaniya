@@ -60,6 +60,10 @@ describe("track_id -> resource_id conversion", () => {
       expect(tg.query<{ c: number }, []>("SELECT COUNT(*) c FROM users").get()!.c).toBe(1);
       expect(tg.query<{ c: number }, []>("SELECT COUNT(*) c FROM telegram_reply_refs").get()!.c).toBe(1);
 
+      // Drizzle's own journal: the baseline is recorded once and not re-applied on restart
+      expect(app.query<{ c: number }, []>("SELECT COUNT(*) c FROM __drizzle_migrations").get()!.c).toBe(1);
+      expect(tg.query<{ c: number }, []>("SELECT COUNT(*) c FROM __drizzle_migrations").get()!.c).toBe(1);
+
       app.close();
       tg.close();
     }
