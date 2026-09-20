@@ -2,8 +2,8 @@
 
 Реализовано в сессии 2026-08-24 (ворктри `agent-aab999315a92a7e92`): `fs-cache-adapter.ts`
 (`TrackStorePort`) вынес инлайновый `fs`-код из `application/process-download-job.ts` —
-`stores: TrackStorePort[]`, фанаут `save()` по всем, `deliver()` вызывается только у
-сторов, которые его реализуют (`isTrackCachePort`, duck-typing). Подробности и полный ход
+фанаут `save()` по всем сторам, `deliver()` вызывается только у сторов из `caches`
+(`TrackCachePort`; с 2026-09-20 явный список вместо duck-typing `isTrackCachePort`, см. `types.md`). Подробности и полный ход
 решения — `docs/diary/2026-08-23_infra-restructure-plan.md`, секция «Ревизия — 2026-08-24».
 
 **Остался один открытый хвост**: `findAndDeliver()` в application проверяет на cache-hit

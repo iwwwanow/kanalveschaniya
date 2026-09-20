@@ -13,17 +13,15 @@ export interface TrackStorePort {
   save(track: Track, filePath: string): Promise<void>;
 }
 
-// TrackStorePort, который вдобавок умеет раздать уже сохранённый трек пользователю через
-// свой backend. deliver() принципиально НЕ обобщается на произвольный store (например fs
-// не может "доставить" файл — доставка всё равно идёт через Telegram) — поэтому это не
-// собственный домен-порт, а расширение конкретного (telegram) стора. В TrackStorePort[]
-// определяется через duck-typing (isTrackCachePort ниже) — application перебирает массив
-// и зовёт deliver() у тех сторов, которые его реализуют.
-export interface TrackCachePort extends TrackStorePort {
-  // opaque jobId, НЕ chatId/messageId — реализация сама резолвит адрес доставки.
+// Раздать уже сохранённый трек пользователю через backend, где он лежит. Не обобщается на
+// произвольный store (fs не может "доставить" файл — доставка всё равно идёт через
+// Telegram), поэтому это отдельный контракт, а не часть TrackStorePort.
+// opaque jobId, НЕ chatId/messageId — реализация сама резолвит адрес доставки.
+export interface DeliveryPort {
   deliver(track: Track, jobId: number): Promise<void>;
 }
 
-export function isTrackCachePort(store: TrackStorePort): store is TrackCachePort {
-  return typeof (store as Partial<TrackCachePort>).deliver === "function";
-}
+// Стор, который умеет и хранить, и раздавать. deliver() надо звать у того же стора, где
+// find() нашёл трек — поэтому application получает такие сторы отдельным списком (caches),
+// а не угадывает по форме объекта в общем массиве (см. docs/specs/types.md).
+export interface TrackCachePort extends TrackStorePort, DeliveryPort {}

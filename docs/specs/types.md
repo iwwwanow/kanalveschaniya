@@ -101,14 +101,21 @@ Telegram-специфичные данные (`telegram_track_refs`/`channelId` 
 произвольный store — фиктивная абстракция (no-op или заглушка на не-telegram
 реализациях).
 
-Поэтому порт расслоён на два:
-- `TrackStorePort` (`find`/`save`) — generic, может быть несколько реализаций
-  одновременно (`stores: TrackStorePort[]`, fan-out).
-- `TrackCachePort extends TrackStorePort` добавляет `deliver` — остаётся
-  telegram-специфичным. В массиве `stores` определяется через duck-typing
-  (`isTrackCachePort(store): store is TrackCachePort`, проверка `typeof store.deliver ===
-  "function"`) — application перебирает `stores` и зовёт `deliver()` у тех, кто его
-  реализует, вместо отдельного поля/массива под "доставляемые" сторы.
+Поэтому порт расслоён:
+- `TrackStorePort` (`find`/`save`) — generic, может быть несколько реализаций одновременно.
+- `DeliveryPort` (`deliver`) — отдельный контракт, telegram-специфичный по смыслу.
+- `TrackCachePort extends TrackStorePort, DeliveryPort` — стор, который умеет и хранить, и
+  раздавать (сейчас — только telegram-канал).
+
+Application получает сторы двумя **типизированными** списками: `caches: TrackCachePort[]`
+(источник cache-hit и доставки) и `archives: TrackStorePort[]` (только `save`, например fs);
+раскладывает их `main.ts`. `deliver()` нельзя отделить от стора, где `find()` нашёл трек, —
+поэтому не отдельный параметр `DeliveryPort`, а отдельный список сторов.
+
+> Пересмотрено 2026-09-20: раньше `stores` был одним массивом, а сторы с `deliver`
+> определялись duck-typing'ом (`isTrackCachePort`, `typeof store.deliver === "function"`).
+> Минус — неявный контракт: стор без `deliver` молча выпадал из доставки, компилятор не
+> ловил. Порядок save→deliver для telegram и затем save для fs остался прежним.
 
 Реализовано (не только спроектировано) — `fs-cache-adapter.ts` (`TrackStorePort`,
 сохраняет в `content/{mp3,mp4}/{sanitizeTitle(title)}_{trackId}.{ext}` — человекочитаемое

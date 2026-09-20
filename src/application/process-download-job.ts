@@ -6,7 +6,7 @@ import type { Track } from "../domain/resource";
 import type { DownloaderPort, DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
-import { type TrackStorePort, type TrackCachePort, isTrackCachePort } from "../domain/track-cache";
+import type { TrackStorePort, TrackCachePort } from "../domain/track-cache";
 
 export interface WorkerLog {
   info(...args: unknown[]): void;
@@ -17,10 +17,11 @@ export interface WorkerLog {
 export interface ProcessDownloadJobDeps {
   queue: QueueRepository;
   downloader: DownloaderPort;
-  // Фанаут find/save по всем сторам. Те, что реализуют deliver (TrackCachePort,
-  // duck-typed через isTrackCachePort) — единственный способ раздать уже кэшированный
-  // трек пользователю; store без deliver (например fs) участвует только в архивации.
-  stores: TrackStorePort[];
+  // Сторы, которые умеют не только хранить, но и раздать трек пользователю (сейчас —
+  // telegram-канал). Единственный источник cache-hit и доставки.
+  caches: TrackCachePort[];
+  // Сторы только для хранения (например fs-архив) — участвуют лишь в save().
+  archives: TrackStorePort[];
   notifier: NotifierPort;
   errorLog: ErrorLogRepository;
   // Playlist fan-out spawns brand-new queue jobs (application-owned, generic) that still
@@ -50,13 +51,12 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
   }
 
   // Только find — ничего не отправляет, просто отвечает "есть готовая к раздаче копия?".
-  // Смотрит только сторы с deliver (сейчас — telegram); fs-архив тут не участвует: найти
+  // Смотрит только caches (сейчас — telegram); fs-архив тут не участвует: найти
   // локальную копию не значит суметь её раздать (доставка всё равно только через
   // Telegram), локальная копия — архив, не источник дедупа, см. docs/specs/types.md.
   // Сам deliver() вызывающий код делает отдельным явным шагом — не спрятан внутри find.
   async function findDeliverable(trackId: string): Promise<{ store: TrackCachePort; track: Track } | null> {
-    for (const store of deps.stores) {
-      if (!isTrackCachePort(store)) continue;
+    for (const store of deps.caches) {
       const track = await store.find(trackId);
       if (track) return { store, track };
     }
@@ -144,21 +144,24 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       return true;
     }
 
-    log.info(`job ${job.id} | storing (${deps.stores.length} backend(s))`);
+    log.info(`job ${job.id} | storing (${deps.caches.length + deps.archives.length} backend(s))`);
     let delivered = false;
-    for (const store of deps.stores) {
+    for (const store of deps.caches) {
       log.info(`job ${job.id} | store=${store.name} | save start`);
       await store.save(result.track, result.filePath);
       log.info(`job ${job.id} | store=${store.name} | save done`);
-      if (isTrackCachePort(store)) {
-        log.info(`job ${job.id} | store=${store.name} | deliver start`);
-        await store.deliver(result.track, job.id);
-        log.info(`job ${job.id} | store=${store.name} | deliver done`);
-        delivered = true;
-      }
+      log.info(`job ${job.id} | store=${store.name} | deliver start`);
+      await store.deliver(result.track, job.id);
+      log.info(`job ${job.id} | store=${store.name} | deliver done`);
+      delivered = true;
+    }
+    for (const store of deps.archives) {
+      log.info(`job ${job.id} | store=${store.name} | save start`);
+      await store.save(result.track, result.filePath);
+      log.info(`job ${job.id} | store=${store.name} | save done`);
     }
 
-    // Ни один стор не смог сам доставить (например только fs-архив без Telegram-кэша) —
+    // Ни один cache не доставил (например только fs-архив без Telegram-кэша) —
     // шлём свежескачанные байты напрямую через NotifierPort.
     if (!delivered) {
       log.info(`job ${job.id} | sending directly to user (no deliverable store)`);

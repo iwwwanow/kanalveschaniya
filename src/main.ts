@@ -15,7 +15,7 @@ import { createYtDlpDownloader, requeueGeoBlockedIfProxyAvailable } from "./infr
 import { createTelegramNotifier } from "./infrastructure/adapters/telegram-notifier";
 import { createTelegramChannelCache } from "./infrastructure/adapters/telegram-channel-cache";
 import { createFsCacheAdapter } from "./infrastructure/adapters/fs-cache-adapter";
-import type { TrackStorePort } from "./domain/track-cache";
+import type { TrackStorePort, TrackCachePort } from "./domain/track-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
 import { createGetUserQueueStatus } from "./application/get-user-queue-status";
 import { createProcessDownloadJob } from "./application/process-download-job";
@@ -58,9 +58,10 @@ const bot = createBot({
 
 const notifier = createTelegramNotifier({ bot, replyRefs });
 
-const stores: TrackStorePort[] = [];
+const caches: TrackCachePort[] = [];
+const archives: TrackStorePort[] = [];
 if (config.cacheToChannel) {
-  stores.push(
+  caches.push(
     createTelegramChannelCache({
       bot,
       channelId: config.channelId,
@@ -71,13 +72,14 @@ if (config.cacheToChannel) {
   );
 }
 if (config.saveToContentDir) {
-  stores.push(createFsCacheAdapter({ contentDir: config.contentDir, resource: resourceRepo }));
+  archives.push(createFsCacheAdapter({ contentDir: config.contentDir, resource: resourceRepo }));
 }
 
 const processDownloadJob = createProcessDownloadJob({
   queue: queueRepo,
   downloader,
-  stores,
+  caches,
+  archives,
   notifier,
   errorLog,
   registerPlaylistEntryOrigin: (childJobId, userId) => replyRefs.save(childJobId, userId, null),
