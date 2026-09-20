@@ -1,32 +1,54 @@
-application -> domain
-infrastructure.presentation -> application
-infrastructure.repository -> domain
-infrastructure.adapters -> domain
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
 
-domain.ports.track-cache -> domain.ports.track-store: "extends"
-infrastructure.adapters.channel-cache -> domain.ports.track-cache: "implements"
-infrastructure.adapters.content-cache -> domain.ports.track-store: "implements"
+direction: down
+
+# Зависимости направлены внутрь: infrastructure -> application -> domain.
+# Детали infrastructure — в infrastructure.d2.
+infrastructure.presentation -> application.use-cases
+infrastructure.workers -> application.use-cases
+infrastructure.repository.sqlite -> domain.repository: implements
+infrastructure.adapters -> domain.ports: implements
+
+application -> domain
+
+domain.ports.resource-cache -> domain.ports.resource-store: extends
+domain.ports.resource-cache -> domain.ports.delivery: extends
+
+# telegram-репозитории: интерфейсы живут в самой infrastructure (не в domain),
+# поэтому адаптеры и presentation ходят в них напрямую
+infrastructure.adapters -> infrastructure.repository.telegram: uses
+infrastructure.presentation -> infrastructure.repository.telegram: uses
 
 infrastructure: {
   presentation: {
     telegram-bot
+    health-server
   }
   adapters: {
     yt-dlp
-    channel-cache
-    content-cache
+    telegram-notifier
+    telegram-channel-cache
+    fs-cache-adapter
   }
   repository: {
     sqlite: {
       label: "sqlite (data/app.db)"
       queue
       resource
+      error-log
     }
     telegram: {
       label: "telegram (data/telegram.db)"
-      telegram_reply_refs
-      telegram_track_refs
-      telegram_send_queue
+      reply-refs
+      resource-refs
+      users
+      send-queue: "send-queue (planned)" {
+        style.stroke-dash: 4
+      }
     }
   }
   workers: {
@@ -37,26 +59,32 @@ infrastructure: {
 application: {
   use-cases: {
     enqueue-download
-    process-download
+    get-user-queue-status
+    process-download-job
+    recover-stuck-jobs
+    requeue-blocked-jobs
   }
 }
 
 domain: {
-  interfaces: {
-    download-result
-    queue-item
+  entities: {
     resource
+    queue-item
+    download-result
+    block-reason
   }
   ports: {
     downloader
     notifier
-    track-store
-    track-cache: {
-      label: "track-cache\n(extends track-store + deliver)"
+    resource-store
+    delivery
+    resource-cache: {
+      label: "resource-cache\n(resource-store + delivery)"
     }
   }
   repository: {
     queue
     resource
+    error-log
   }
 }

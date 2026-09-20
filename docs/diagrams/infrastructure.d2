@@ -1,0 +1,128 @@
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
+
+direction: down
+
+# Детализация infrastructure из core.d2. Группировка — по технической роли;
+# всё, что относится к Telegram, выделено цветом (класс tg), потому что Telegram
+# проходит через три слоя: вход (bot/handlers), выход (notifier) и
+# хранилище+доставка (channel-cache).
+
+classes: {
+  tg: {
+    style: {
+      fill: "#dbeafe"
+      stroke: "#2b6cb0"
+    }
+  }
+}
+
+legend: "синий = Telegram-специфичное" {
+  class: tg
+}
+
+main: "main.ts\n(composition root: создаёт и связывает всё)"
+
+# границы, для контекста
+application: {
+  enqueue-download
+  get-user-queue-status
+  process-download-job
+  recover-stuck-jobs
+  requeue-blocked-jobs
+}
+domain: {
+  ports: {
+    downloader
+    notifier
+    resource-store
+    resource-cache
+  }
+  repository: {
+    queue
+    resource
+    error-log
+  }
+}
+
+infrastructure: {
+  presentation: {
+    telegram-bot: {class: tg}
+    telegram-handlers: {class: tg}
+    extract-url
+    health-server
+  }
+  adapters: {
+    yt-dlp
+    telegram-notifier: {class: tg}
+    telegram-channel-cache: {class: tg}
+    fs-cache-adapter
+    telegram-client: {
+      send-media: {class: tg}
+    }
+  }
+  repository: {
+    sqlite: {
+      label: "sqlite"
+      queue
+      resource
+      error-log
+    }
+    telegram: {
+      label: "telegram"
+      reply-refs: {class: tg}
+      resource-refs: {class: tg}
+      users: {class: tg}
+    }
+  }
+  db: {
+    app-db: "app-db (data/app.db)"
+    telegram-db: "telegram-db (data/telegram.db)" {class: tg}
+  }
+  workers: {
+    queue-poller
+  }
+}
+
+# --- запуск (main.ts) ---
+main -> infrastructure.workers.queue-poller: starts
+main -> infrastructure.presentation.telegram-bot: launches
+main -> infrastructure.presentation.health-server: starts
+main -> application.recover-stuck-jobs: "on startup"
+main -> application.requeue-blocked-jobs: "on startup (if PROXY)"
+
+# --- вход: Telegram -> application ---
+infrastructure.presentation.telegram-bot -> infrastructure.presentation.telegram-handlers: registers
+infrastructure.presentation.telegram-handlers -> infrastructure.presentation.extract-url
+infrastructure.presentation.telegram-handlers -> application.enqueue-download
+infrastructure.presentation.telegram-handlers -> application.get-user-queue-status
+infrastructure.presentation.telegram-handlers -> infrastructure.repository.telegram.reply-refs
+infrastructure.presentation.telegram-handlers -> infrastructure.repository.telegram.users
+
+# --- воркер ---
+infrastructure.workers.queue-poller -> application.process-download-job
+infrastructure.workers.queue-poller -> domain.repository.queue: claims
+
+# --- выход и хранилище: адаптеры реализуют порты ---
+infrastructure.adapters.yt-dlp -> domain.ports.downloader: implements
+infrastructure.adapters.telegram-notifier -> domain.ports.notifier: implements
+infrastructure.adapters.telegram-channel-cache -> domain.ports.resource-cache: implements
+infrastructure.adapters.fs-cache-adapter -> domain.ports.resource-store: implements
+
+infrastructure.adapters.telegram-notifier -> infrastructure.adapters.telegram-client.send-media
+infrastructure.adapters.telegram-channel-cache -> infrastructure.adapters.telegram-client.send-media
+infrastructure.adapters.telegram-notifier -> infrastructure.repository.telegram.reply-refs
+infrastructure.adapters.telegram-channel-cache -> infrastructure.repository.telegram.reply-refs
+infrastructure.adapters.telegram-channel-cache -> infrastructure.repository.telegram.resource-refs
+infrastructure.adapters.telegram-channel-cache -> domain.repository.resource
+infrastructure.adapters.fs-cache-adapter -> domain.repository.resource
+
+# --- репозитории ---
+infrastructure.repository.sqlite.queue -> domain.repository.queue: implements
+infrastructure.repository.sqlite.resource -> domain.repository.resource: implements
+infrastructure.repository.sqlite.error-log -> domain.repository.error-log: implements
+infrastructure.repository.sqlite -> infrastructure.db.app-db
+infrastructure.repository.telegram -> infrastructure.db.telegram-db
