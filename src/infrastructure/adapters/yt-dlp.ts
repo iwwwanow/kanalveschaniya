@@ -4,7 +4,8 @@ import { config } from "../../config";
 import { logger } from "../../logger";
 import type { Track } from "../../domain/resource";
 import type { DownloadResult, DownloaderPort } from "../../domain/download";
-import type { QueueRepository } from "../../domain/queue";
+import { type QueueRepository, QueueStatus } from "../../domain/queue";
+import { BlockReason } from "../../domain/block-reason";
 
 mkdirSync(config.tmpDir, { recursive: true });
 
@@ -142,8 +143,8 @@ export function createYtDlpDownloader(): DownloaderPort {
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
 
-        if (isDrmProtected(error)) return { ok: false, error, blockReason: "drm", retryable: false };
-        if (isGeoBlocked(error)) return { ok: false, error, blockReason: "geo", retryable: false };
+        if (isDrmProtected(error)) return { ok: false, error, blockReason: BlockReason.Drm, retryable: false };
+        if (isGeoBlocked(error)) return { ok: false, error, blockReason: BlockReason.Geo, retryable: false };
         if (isNotFound(error)) return { ok: false, error, retryable: false };
 
         return { ok: false, error, retryable: true };
@@ -164,6 +165,6 @@ const GEO_REQUEUE_STAGGER_SECONDS = 30;
 
 export async function requeueGeoBlockedIfProxyAvailable(queue: QueueRepository): Promise<void> {
   if (!config.proxy) return;
-  await queue.requeueByBlockReason("geo", "pending", GEO_REQUEUE_STAGGER_SECONDS);
+  await queue.requeueByBlockReason(BlockReason.Geo, QueueStatus.Pending, GEO_REQUEUE_STAGGER_SECONDS);
   logger.info("requeued geo-blocked jobs for retry (proxy is set), staggered to avoid a cold-start burst");
 }

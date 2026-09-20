@@ -1,6 +1,7 @@
 // why we dont use drizzle?
 import type { Database } from "bun:sqlite";
-import type { QueueItem, QueueRepository, QueueStatus } from "../../domain/queue";
+import { type QueueItem, type QueueRepository, QueueStatus } from "../../domain/queue";
+import { parseBlockReason } from "../../domain/block-reason";
 
 interface QueueRow {
   id: number;
@@ -23,7 +24,7 @@ function toQueueItem(row: QueueRow): QueueItem {
     userId: row.user_id,
     status: row.status,
     error: row.error,
-    blockReason: row.block_reason,
+    blockReason: parseBlockReason(row.block_reason),
     retries: row.retries,
     retryAfter: row.retry_after,
     createdAt: row.created_at,
@@ -69,7 +70,7 @@ export function createQueueRepository(db: Database): QueueRepository {
         .get();
       if (!row) return null;
       db.run(`UPDATE queue SET status = 'processing' WHERE id = ?`, [row.id]);
-      return toQueueItem({ ...row, status: "processing" });
+      return toQueueItem({ ...row, status: QueueStatus.Processing });
     },
 
     async updateStatus(id, status, patch) {

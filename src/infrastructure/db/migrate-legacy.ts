@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync } from "fs";
 import { join } from "path";
 import { logger } from "../../logger";
+import { BlockReason } from "../../domain/block-reason";
 
 interface LegacyUserRow {
   user_id: number;
@@ -60,29 +61,35 @@ export function migrateLegacyDb(opts: MigrateLegacyDbOptions): void {
     return;
   }
 
-  logger.info(`legacy bot.db found at ${legacyPath} — migrating to app.db + telegram.db`);
+  logger.info(
+    `legacy bot.db found at ${legacyPath} — migrating to app.db + telegram.db`,
+  );
 
   const legacyDb = new Database(legacyPath, { readonly: true });
 
   try {
     const users = legacyDb
-      .query<LegacyUserRow, []>("SELECT user_id, username, first_seen FROM users")
+      .query<
+        LegacyUserRow,
+        []
+      >("SELECT user_id, username, first_seen FROM users")
       .all();
     const insertUser = telegramDb.query(
-      "INSERT OR IGNORE INTO users (user_id, username, first_seen) VALUES (?, ?, ?)"
+      "INSERT OR IGNORE INTO users (user_id, username, first_seen) VALUES (?, ?, ?)",
     );
     for (const u of users) insertUser.run(u.user_id, u.username, u.first_seen);
 
     const tracks = legacyDb
-      .query<LegacyTrackRow, []>(
-        "SELECT track_id, url, channel_message_id, title, duration, cached_at FROM tracks"
-      )
+      .query<
+        LegacyTrackRow,
+        []
+      >("SELECT track_id, url, channel_message_id, title, duration, cached_at FROM tracks")
       .all();
     const insertResource = appDb.query(
-      "INSERT OR IGNORE INTO resource (track_id, url, title, duration, cached_at) VALUES (?, ?, ?, ?, ?)"
+      "INSERT OR IGNORE INTO resource (track_id, url, title, duration, cached_at) VALUES (?, ?, ?, ?, ?)",
     );
     const insertTrackRef = telegramDb.query(
-      "INSERT OR IGNORE INTO telegram_track_refs (track_id, channel_message_id) VALUES (?, ?)"
+      "INSERT OR IGNORE INTO telegram_track_refs (track_id, channel_message_id) VALUES (?, ?)",
     );
     for (const t of tracks) {
       insertResource.run(t.track_id, t.url, t.title, t.duration, t.cached_at);
@@ -90,39 +97,55 @@ export function migrateLegacyDb(opts: MigrateLegacyDbOptions): void {
     }
 
     const errorLogs = legacyDb
-      .query<LegacyErrorLogRow, []>("SELECT job_id, url, error, created_at FROM error_log")
+      .query<
+        LegacyErrorLogRow,
+        []
+      >("SELECT job_id, url, error, created_at FROM error_log")
       .all();
     const insertErrorLog = appDb.query(
-      "INSERT INTO error_log (job_id, url, error, created_at) VALUES (?, ?, ?, ?)"
+      "INSERT INTO error_log (job_id, url, error, created_at) VALUES (?, ?, ?, ?)",
     );
-    for (const e of errorLogs) insertErrorLog.run(e.job_id, e.url, e.error, e.created_at);
+    for (const e of errorLogs)
+      insertErrorLog.run(e.job_id, e.url, e.error, e.created_at);
 
     const queueRows = legacyDb
-      .query<LegacyQueueRow, []>(
-        "SELECT id, url, track_id, user_id, status, retries, retry_after, error, created_at FROM queue"
-      )
+      .query<
+        LegacyQueueRow,
+        []
+      >("SELECT id, url, track_id, user_id, status, retries, retry_after, error, created_at FROM queue")
       .all();
     const insertQueue = appDb.query(
       `INSERT INTO queue (id, url, track_id, user_id, status, block_reason, retries, retry_after, error, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     // messageId=NULL — these jobs survived from before reply-target tracking existed;
     // TelegramReplyRef.messageId is number|null precisely for this case (plan decision).
     const insertReplyRef = telegramDb.query(
-      "INSERT OR IGNORE INTO telegram_reply_refs (job_id, chat_id, message_id) VALUES (?, ?, NULL)"
+      "INSERT OR IGNORE INTO telegram_reply_refs (job_id, chat_id, message_id) VALUES (?, ?, NULL)",
     );
 
     let queueMigrated = 0;
     let replyRefsSynthesized = 0;
     for (const q of queueRows) {
       let status = q.status;
-      let blockReason: string | null = null;
+      let blockReason: BlockReason | null = null;
       if (status === "processing") status = "pending";
       if (status === "geo_blocked") {
         status = "failed";
-        blockReason = "geo";
+        blockReason = BlockReason.Geo;
       }
-      insertQueue.run(q.id, q.url, q.track_id, q.user_id, status, blockReason, q.retries, q.retry_after, q.error, q.created_at);
+      insertQueue.run(
+        q.id,
+        q.url,
+        q.track_id,
+        q.user_id,
+        status,
+        blockReason,
+        q.retries,
+        q.retry_after,
+        q.error,
+        q.created_at,
+      );
       queueMigrated++;
       if (status !== "done") {
         insertReplyRef.run(q.id, q.user_id);
@@ -132,7 +155,7 @@ export function migrateLegacyDb(opts: MigrateLegacyDbOptions): void {
 
     logger.info(
       `legacy migration complete: users=${users.length} resource=${tracks.length} ` +
-        `error_log=${errorLogs.length} queue=${queueMigrated} reply_refs_synthesized=${replyRefsSynthesized}`
+        `error_log=${errorLogs.length} queue=${queueMigrated} reply_refs_synthesized=${replyRefsSynthesized}`,
     );
   } finally {
     legacyDb.close();

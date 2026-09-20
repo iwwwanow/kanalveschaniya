@@ -5,7 +5,7 @@
 Telegram-бот для скачивания музыки/видео через yt-dlp с кэшированием через приватный Telegram-канал.
 
 Архитектура, стек, схема БД, env vars — актуальное описание в корневом `CLAUDE.md`, здесь не дублируется.
-Спецификации: `docs/specs/telegram-bot.md` (хендлеры), `docs/specs/types.md` (типы/порты), `docs/diagram.d2` (схема слоёв).
+Спецификации: `docs/specs/telegram-bot.md` (хендлеры), `docs/specs/types.md` (типы/порты), `docs/diagrams/core.d2` (схема слоёв).
 
 ## Статус
 
@@ -24,6 +24,58 @@ Telegram-бот для скачивания музыки/видео через y
 - `/healthz` + `HEALTH_PORT` (`src/infrastructure/presentation/health-server.ts`) — heartbeat-таймер,
   503 если event loop подвис. Подключён как `livenessProbe` в манифесте `infrastructure`-репо (коммит
   `c53ad27`) — реакция на то, что зависший (не упавший) под раньше требовал ручного ребута ноды.
+
+## Рефакторинг слоёв (ревью `docs/diagrams/core.d2`, 2026-09-20)
+
+Итог обсуждения диаграммы против кода. Схема и код расходятся в нескольких местах, часть — реальные
+нарушения границ слоёв. Порядок ниже — по зависимостям и размеру: мелкие изолированные правки первыми,
+крупное переименование — последним, чтобы не ловить конфликты. **Относительно «Задач по приоритету»:**
+шаги 1–8 берём *до* P0-пунктов про `process-download-job` («изолировать сторы», «split download/upload») —
+они трогают тот же файл, проще делать на уже расчищенном коде.
+
+### Шаги (по порядку выполнения)
+
+- [x] **1. `BlockReason` и `QueueStatus` как TypeScript-`enum` в `domain/`.** Значения: `geo`, `drm`,
+      `too_large`, `crashed_repeatedly`. Строки в БД не меняются — миграция не нужна. Заменяет прежнее
+      решение «blockReason opaque для domain/application». `telegram-notifier` переходит на
+      `Record<BlockReason, string>`/исчерпывающий `switch`; `toQueueItem` валидирует значение из БД.
+      Разблокирует шаги 6 и 7. Подробности — `docs/backlog/2026-08-26_blockreason-shared-type.md`.
+- [x] **2. `ErrorLogRepository`.** `domain/error-log.ts` (интерфейс, `add(jobId, url, error)`) +
+      `infrastructure/repository/error-log-repository.ts`; `appDb` уходит из `ProcessDownloadJobDeps`.
+- [x] **3. Use-case `getUserQueueStatus`.** `/status` перестаёт ходить в `QueueRepository` напрямую из
+      `telegram-handlers`; из диаграммы уходит стрелка `presentation -> domain.repository`.
+- [x] **4. `TelegramUsersRepository`.** Сырой `INSERT OR IGNORE INTO users` уходит из handlers в
+      репозиторий рядом с `reply_refs`/`track_refs`; `telegramDb` уходит из `TelegramHandlersDeps`.
+      Use-case не нужен — `users` это telegram-понятие, не домен. Связано с открытым вопросом про
+      `users.username` (см. «Открыто» ниже).
+- [ ] **5. `DeliveryPort` вместо duck-typing (`isTrackCachePort`).** `DeliveryPort { deliver(track, jobId) }`
+      реализует `telegram-channel-cache` вместе с `TrackStorePort`; application получает его отдельным
+      параметром.
+- [ ] **6. `recover-stuck-jobs` → use-case в application.** Новых сущностей не требует (нужны только
+      `QueueRepository`, `NotifierPort`, `DownloadResult`, `MAX_RETRIES`/`backoffSeconds`,
+      `BlockReason.CrashedRepeatedly`); вместо глобального `logger` — `WorkerLog`. Зависит от шага 1.
+- [ ] **7. Geo-requeue из `yt-dlp.ts` → use-case `requeueBlockedJobs({ reason, staggerSeconds })`.**
+      Условие «PROXY задан» остаётся в `main.ts` (конфигурация). Адаптер загрузчика не должен управлять
+      очередью. Зависит от шага 1.
+- [ ] **8. `telegram-send-media` → `infrastructure/adapters/telegram-client/`.** Общий хелпер двух адаптеров
+      (`channel-cache`, `notifier`), порт не реализует — в диаграмме отдельным узлом вне `adapters`.
+- [ ] **9. Переименование Track → Resource в коде** (~169 вхождений в 21 файле): `Track`, `TrackStorePort`,
+      `TrackCachePort`/`DeliveryPort`, `trackId`, `track-cache.ts`, `telegram-track-refs*`. Крупное, отдельным
+      заходом, после шагов 1–8.
+- [ ] **10. (решение) Переименовывать ли колонки БД** (`queue.track_id`, `telegram_track_refs.track_id`) —
+      требует миграции на боевых данных. Пока не решено; вариант «оставить как исторический артефакт схемы».
+- [ ] **11. Диаграммы.** Обновить `core.d2` (`vars.d2-config.layout-engine`, `direction`, убрать/пометить
+      `telegram_send_queue`, реальные имена узлов, `telegram-notifier`, `recover-stuck-jobs`, `health-server`,
+      `db`, `main` как composition root) и написать `docs/diagrams/infrastructure.d2` (три шва Telegram:
+      вход, выход, хранилище/доставка). Делать после шагов 1–8 — чтобы не рисовать протечки, которые убираем.
+- [ ] **12. Drizzle** — после шагов 2–4, когда весь SQL окажется внутри репозиториев (см. P2).
+
+### Открытые вопросы
+
+- `too_large` сейчас только уведомляет и `return false` — `blockReason` в `queue` не пишется. Так и
+  задумано, или причину нужно сохранять в задаче?
+- `CLAUDE.md` проекта описывает статус `geo_blocked`, которого в коде нет (гео — это `blockReason`);
+  поправить при закрытии шага 1.
 
 ## Задачи по приоритету
 
@@ -82,14 +134,16 @@ Telegram-бот для скачивания музыки/видео через y
 - [ ] `extractUrl` не находит ссылку внутри произвольного текста сообщения (только если всё сообщение —
       валидный URL). Подробности — `docs/backlog/2026-08-26_extract-url-inline-text.md`.
 - [ ] `blockReason` — общий словарь строк (`"geo"`/`"drm"`/`"too_large"`) без единого типа, риск опечатки.
-      Подробности — `docs/backlog/2026-08-26_blockreason-shared-type.md`.
+      Подробности — `docs/backlog/2026-08-26_blockreason-shared-type.md`. **→ вошло в «Рефакторинг слоёв», шаг 1.**
 - [ ] Мусор в `queue` — `error`/`block_reason` не чистятся при успешном `done`, `track_id` не пишется
       обратно в БД. Подробности — `docs/backlog/2026-08-26_queue-stale-error-track-id-cleanup.md`.
 - [ ] `error_log`-запись в обход репозитория — единственное место в `application/`, где код бьёт по
       `Database` напрямую. Подробности — `docs/backlog/2026-08-26_error-log-write-bypasses-repository.md`.
+      **→ вошло в «Рефакторинг слоёв», шаг 2.**
 - [ ] `NotifierPort`/`TrackCachePort` пересекаются по ответственности (оба резолвят `jobId→chatId` и шлют
       в Telegram) — не блокирует, пересмотреть при третьем похожем кейсе.
-      Подробности — `docs/backlog/2026-08-26_notifier-trackcache-overlap.md`.
+      Подробности — `docs/backlog/2026-08-26_notifier-trackcache-overlap.md`. Частично затрагивается шагом 5
+      «Рефакторинга слоёв» (`DeliveryPort` вместо `TrackCachePort`).
 - [ ] `migrateLegacyDb` — без батчинга транзакций, на слабом железе (Pi + SD) может идти десятки минут.
       Подробности — `docs/backlog/2026-08-26_migrate-legacy-db-no-batching.md`.
 - [ ] Drizzle вместо ручного `bun:sqlite` — сознательно отложено, путь миграции описан и остаётся открытым.

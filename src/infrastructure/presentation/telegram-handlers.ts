@@ -1,21 +1,19 @@
 import type { Telegraf } from "telegraf";
 import { message, channelPost } from "telegraf/filters";
-import type { Database } from "bun:sqlite";
 import { config } from "../../config";
 import { logger } from "../../logger";
 import { extractUrl } from "./extract-url";
 import type { EnqueueDownloadFn } from "../../application/enqueue-download";
-import type { QueueRepository } from "../../domain/queue";
+import type { GetUserQueueStatusFn } from "../../application/get-user-queue-status";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
+import type { TelegramUsersRepository } from "../repository/telegram-users.interfaces";
 
 export interface TelegramHandlersDeps {
   bot: Telegraf;
   enqueueDownload: EnqueueDownloadFn;
   replyRefs: TelegramReplyRefsRepository;
-  queue: QueueRepository;
-  // users upsert is plain SQL against telegram.db, in presentation — plan decision #1
-  // (users isn't a domain table, no Repository/Port wrapper).
-  telegramDb: Database;
+  getUserQueueStatus: GetUserQueueStatusFn;
+  users: TelegramUsersRepository;
 }
 
 async function isChannelAdmin(bot: Telegraf, userId: number): Promise<boolean> {
@@ -26,10 +24,6 @@ async function isChannelAdmin(bot: Telegraf, userId: number): Promise<boolean> {
     logger.bot.warn(`admin check failed for user ${userId}:`, err);
     return false;
   }
-}
-
-function upsertUser(telegramDb: Database, userId: number, username: string | null) {
-  telegramDb.run(`INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)`, [userId, username]);
 }
 
 export function registerHandlers(deps: TelegramHandlersDeps) {
@@ -48,7 +42,7 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
   });
 
   bot.command("status", async (ctx) => {
-    const counts = await deps.queue.countByStatusForUser(ctx.from.id);
+    const counts = await deps.getUserQueueStatus(ctx.from.id);
     const entries = Object.entries(counts);
 
     if (entries.length === 0) {
@@ -83,7 +77,7 @@ export function registerHandlers(deps: TelegramHandlersDeps) {
       return;
     }
 
-    upsertUser(deps.telegramDb, ctx.from.id, ctx.from.username ?? null);
+    await deps.users.upsert(ctx.from.id, ctx.from.username ?? null);
 
     const result = await deps.enqueueDownload({ url, userId: ctx.from.id });
 

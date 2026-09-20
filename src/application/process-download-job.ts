@@ -1,9 +1,10 @@
-import type { Database } from "bun:sqlite";
 import { unlink } from "fs/promises";
 import { config } from "../config";
-import { type QueueItem, type QueueRepository, MAX_RETRIES, backoffSeconds } from "../domain/queue";
+import { type QueueItem, type QueueRepository, QueueStatus, MAX_RETRIES, backoffSeconds } from "../domain/queue";
+import { BlockReason } from "../domain/block-reason";
 import type { Track } from "../domain/resource";
 import type { DownloaderPort } from "../domain/download";
+import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import { type TrackStorePort, type TrackCachePort, isTrackCachePort } from "../domain/track-cache";
 
@@ -21,9 +22,7 @@ export interface ProcessDownloadJobDeps {
   // трек пользователю; store без deliver (например fs) участвует только в архивации.
   stores: TrackStorePort[];
   notifier: NotifierPort;
-  // Direct SQL for error_log — generic diagnostics, not domain data, per the plan's
-  // decision #2 (docs/agents/planning session "noble-canyon"). Физически лежит в app.db.
-  appDb: Database;
+  errorLog: ErrorLogRepository;
   // Playlist fan-out spawns brand-new queue jobs (application-owned, generic) that still
   // need a telegram delivery target when they complete independently later. Registering
   // that target is a telegram-infra concern, so it's injected as an opaque callback —
@@ -34,9 +33,8 @@ export interface ProcessDownloadJobDeps {
 export type ProcessDownloadJobFn = (job: QueueItem, log: WorkerLog) => Promise<void>;
 
 export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessDownloadJobFn {
-  function logError(jobId: number, url: string, error: string) {
-		// sql прям в app?
-    deps.appDb.run(`INSERT INTO error_log (job_id, url, error) VALUES (?, ?, ?)`, [jobId, url, error]);
+  async function logError(jobId: number, url: string, error: string) {
+    await deps.errorLog.add(jobId, url, error);
   }
 
   // Только find — ничего не отправляет, просто отвечает "есть готовая к раздаче копия?".
@@ -112,8 +110,8 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
 
     if (!result.ok) {
       log.error(`job ${job.id} | permanent failure | blockReason=${result.blockReason ?? "-"} | ${result.error.split("\n")[0]}`);
-      logError(job.id, job.url, result.error);
-      await deps.queue.updateStatus(job.id, "failed", {
+      await logError(job.id, job.url, result.error);
+      await deps.queue.updateStatus(job.id, QueueStatus.Failed, {
         error: result.error,
         blockReason: result.blockReason ?? null,
       });
@@ -130,7 +128,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       await deps.notifier.notify(job.id, {
         ok: false,
         error: `Трек "${result.track.title}" превышает лимит 50MB и был пропущен`,
-        blockReason: "too_large",
+        blockReason: BlockReason.TooLarge,
         retryable: false,
       });
       return false;
@@ -168,12 +166,12 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     try {
       const finalized = await runJob(job, log);
       if (!finalized) {
-        await deps.queue.updateStatus(job.id, "done");
+        await deps.queue.updateStatus(job.id, QueueStatus.Done);
         log.info(`job ${job.id} | done`);
       }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
-      logError(job.id, job.url, error);
+      await logError(job.id, job.url, error);
 
       // Off-by-one fix (plan decision #6): exhausted is checked on retries *already
       // spent*, so all three backoffs (30s/60s/120s) fire before the job is failed.
@@ -182,12 +180,12 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       log.error(`job ${job.id} | attempt ${job.retries + 1} | exhausted=${exhausted} | ${error.split("\n")[0]}`);
 
       if (exhausted) {
-        await deps.queue.updateStatus(job.id, "failed", { error });
+        await deps.queue.updateStatus(job.id, QueueStatus.Failed, { error });
         await deps.notifier.notify(job.id, { ok: false, error, retryable: false });
       } else {
         const delaySeconds = backoffSeconds(job.retries);
         const retryAt = Math.floor(Date.now() / 1000) + delaySeconds;
-        await deps.queue.updateStatus(job.id, "pending", {
+        await deps.queue.updateStatus(job.id, QueueStatus.Pending, {
           retries: job.retries + 1,
           error,
           retryAfter: retryAt,

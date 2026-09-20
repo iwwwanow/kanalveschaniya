@@ -2,6 +2,7 @@ import type { Telegraf } from "telegraf";
 import { basename } from "path";
 import type { DownloadResult } from "../../domain/download";
 import type { NotifierPort } from "../../domain/notifier";
+import { BlockReason } from "../../domain/block-reason";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
 import { sendMedia } from "./telegram-send-media";
 
@@ -12,22 +13,18 @@ export interface TelegramNotifierDeps {
 
 type FailureResult = Extract<DownloadResult, { ok: false }>;
 
-// blockReason is opaque to domain/application (see docs/specs/types.md) — this is infra,
-// so it's free to give the opaque string real meaning for user-facing text.
+// Exhaustive over BlockReason — adding a reason without a user-facing text fails typecheck.
+const BLOCK_REASON_MESSAGES: Record<BlockReason, (result: FailureResult) => string> = {
+  [BlockReason.Geo]: () =>
+    "Трек недоступен из-за гео-ограничения.\nБудет загружен автоматически при настройке прокси.",
+  [BlockReason.Drm]: () => "Трек защищён DRM, скачивание невозможно.",
+  [BlockReason.TooLarge]: (result) => result.error,
+  [BlockReason.CrashedRepeatedly]: () =>
+    "Не удалось загрузить трек — скачивание несколько раз подряд приводило к сбою (вероятно, трек слишком большой/длинный).",
+};
+
 function formatFailureMessage(result: FailureResult): string {
-	// is it error from yt-dlp adapter constants?
-  if (result.blockReason === "geo") {
-    return "Трек недоступен из-за гео-ограничения.\nБудет загружен автоматически при настройке прокси.";
-  }
-  if (result.blockReason === "drm") {
-    return "Трек защищён DRM, скачивание невозможно.";
-  }
-  if (result.blockReason === "too_large") {
-    return result.error;
-  }
-  if (result.blockReason === "crashed_repeatedly") {
-    return "Не удалось загрузить трек — скачивание несколько раз подряд приводило к сбою (вероятно, трек слишком большой/длинный).";
-  }
+  if (result.blockReason) return BLOCK_REASON_MESSAGES[result.blockReason](result);
   if (result.error.includes("HTTP Error 404")) {
     return "Не удалось загрузить: трек не найден (404).";
   }

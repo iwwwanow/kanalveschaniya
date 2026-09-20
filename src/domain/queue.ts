@@ -1,4 +1,11 @@
-export type QueueStatus = "pending" | "processing" | "done" | "failed";
+import type { BlockReason } from "./block-reason";
+
+export enum QueueStatus {
+  Pending = "pending",
+  Processing = "processing",
+  Done = "done",
+  Failed = "failed",
+}
 
 // Shared with the crash-recovery path (infra/workers/recover-stuck-jobs.ts) so a process
 // crash mid-download counts as an attempt the same way an in-process failure does —
@@ -16,7 +23,7 @@ export interface QueueItem {
   userId: number;
   status: QueueStatus;
   error: string | null;
-  blockReason: string | null; // opaque for domain/application — see docs/specs/types.md
+  blockReason: BlockReason | null;
   retries: number; // generic queue bookkeeping, needed by application's backoff logic
   retryAfter: number | null; // unix timestamp; job not claimable before this time
   createdAt: number;
@@ -33,7 +40,7 @@ export interface QueueRepository {
   // startup-time backlog recovery (e.g. all geo-blocked jobs once PROXY is set)
   // otherwise becomes an immediate burst of concurrent downloads right as the process
   // comes up cold. Default 0 keeps existing unstaggered behavior.
-  requeueByBlockReason(reason: string, newStatus: QueueStatus, staggerSeconds?: number): Promise<void>;
+  requeueByBlockReason(reason: BlockReason, newStatus: QueueStatus, staggerSeconds?: number): Promise<void>;
   countByStatusForUser(userId: number): Promise<Record<string, number>>;
   // Jobs left in 'processing' by a run that died mid-download (OOM-kill, pod restart) —
   // never reached the in-process catch, so never got a chance to update their own status.

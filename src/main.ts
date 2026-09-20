@@ -6,15 +6,18 @@ import { openAppDb } from "./infrastructure/db/app-db";
 import { openTelegramDb } from "./infrastructure/db/telegram-db";
 import { migrateLegacyDb } from "./infrastructure/db/migrate-legacy";
 import { createQueueRepository } from "./infrastructure/repository/queue-repository";
+import { createErrorLogRepository } from "./infrastructure/repository/error-log-repository";
 import { createResourceRepository } from "./infrastructure/repository/resource-repository";
 import { createTelegramReplyRefsRepository } from "./infrastructure/repository/telegram-reply-refs";
 import { createTelegramTrackRefsRepository } from "./infrastructure/repository/telegram-track-refs";
+import { createTelegramUsersRepository } from "./infrastructure/repository/telegram-users";
 import { createYtDlpDownloader, requeueGeoBlockedIfProxyAvailable } from "./infrastructure/adapters/yt-dlp";
 import { createTelegramNotifier } from "./infrastructure/adapters/telegram-notifier";
 import { createTelegramChannelCache } from "./infrastructure/adapters/telegram-channel-cache";
 import { createFsCacheAdapter } from "./infrastructure/adapters/fs-cache-adapter";
 import type { TrackStorePort } from "./domain/track-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
+import { createGetUserQueueStatus } from "./application/get-user-queue-status";
 import { createProcessDownloadJob } from "./application/process-download-job";
 import { createBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
@@ -39,15 +42,18 @@ const queueRepo = createQueueRepository(appDb);
 const resourceRepo = createResourceRepository(appDb);
 const replyRefs = createTelegramReplyRefsRepository(telegramDb);
 const trackRefs = createTelegramTrackRefsRepository(telegramDb);
+const users = createTelegramUsersRepository(telegramDb);
+const errorLog = createErrorLogRepository(appDb);
 const downloader = createYtDlpDownloader();
 
 const enqueueDownload = createEnqueueDownload(queueRepo);
+const getUserQueueStatus = createGetUserQueueStatus(queueRepo);
 
 const bot = createBot({
   enqueueDownload,
   replyRefs,
-  queue: queueRepo,
-  telegramDb,
+  getUserQueueStatus,
+  users,
 });
 
 const notifier = createTelegramNotifier({ bot, replyRefs });
@@ -73,7 +79,7 @@ const processDownloadJob = createProcessDownloadJob({
   downloader,
   stores,
   notifier,
-  appDb,
+  errorLog,
   registerPlaylistEntryOrigin: (childJobId, userId) => replyRefs.save(childJobId, userId, null),
 });
 

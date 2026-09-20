@@ -1,5 +1,6 @@
 import type { QueueRepository } from "../../domain/queue";
-import { MAX_RETRIES, backoffSeconds } from "../../domain/queue";
+import { MAX_RETRIES, QueueStatus, backoffSeconds } from "../../domain/queue";
+import { BlockReason } from "../../domain/block-reason";
 import type { NotifierPort } from "../../domain/notifier";
 import { logger } from "../../logger";
 
@@ -18,12 +19,12 @@ export async function recoverStuckProcessingJobs(queue: QueueRepository, notifie
 
     if (retries >= MAX_RETRIES) {
       const error = "Скачивание несколько раз подряд приводило к сбою процесса — попытки прекращены.";
-      await queue.updateStatus(job.id, "failed", { retries, error, blockReason: "crashed_repeatedly" });
-      await notifier.notify(job.id, { ok: false, error, retryable: false, blockReason: "crashed_repeatedly" });
+      await queue.updateStatus(job.id, QueueStatus.Failed, { retries, error, blockReason: BlockReason.CrashedRepeatedly });
+      await notifier.notify(job.id, { ok: false, error, retryable: false, blockReason: BlockReason.CrashedRepeatedly });
       logger.error(`job ${job.id} | crashed_repeatedly | exhausted after ${retries} crash(es)`);
     } else {
       const retryAfter = Math.floor(Date.now() / 1000) + backoffSeconds(retries);
-      await queue.updateStatus(job.id, "pending", { retries, retryAfter });
+      await queue.updateStatus(job.id, QueueStatus.Pending, { retries, retryAfter });
       logger.warn(`job ${job.id} | recovered from crash | attempt ${retries + 1} in ${backoffSeconds(retries)}s`);
     }
   }
