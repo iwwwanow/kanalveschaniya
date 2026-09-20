@@ -7,12 +7,7 @@ import type { DownloaderPort, DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import type { TrackStorePort, TrackCachePort } from "../domain/track-cache";
-
-export interface WorkerLog {
-  info(...args: unknown[]): void;
-  warn(...args: unknown[]): void;
-  error(...args: unknown[]): void;
-}
+import type { WorkerLog } from "./worker-log";
 
 export interface ProcessDownloadJobDeps {
   queue: QueueRepository;

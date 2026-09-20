@@ -1,7 +1,8 @@
 import { logger } from "../../logger";
 import { config } from "../../config";
 import type { QueueRepository } from "../../domain/queue";
-import type { ProcessDownloadJobFn, WorkerLog } from "../../application/process-download-job";
+import type { ProcessDownloadJobFn } from "../../application/process-download-job";
+import type { WorkerLog } from "../../application/worker-log";
 
 export function startQueuePoller(queue: QueueRepository, processDownloadJob: ProcessDownloadJobFn): void {
   for (let i = 1; i <= config.workerConcurrency; i++) {
