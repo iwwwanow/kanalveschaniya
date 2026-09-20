@@ -41,16 +41,16 @@ export function createTelegramNotifier(deps: TelegramNotifierDeps): NotifierPort
 
       if (result.ok) {
         // Only called when caching is disabled (CACHE_TO_CHANNEL=false) — when caching is
-        // enabled, TrackCachePort.deliver() already handled delivery (plan decision #5).
+        // enabled, ResourceCachePort.deliver() already handled delivery (plan decision #5).
         const isVideo = result.filePath.endsWith(".mp4");
         await sendMedia({
           chatId: ref.chatId,
           filePath: result.filePath,
           filename: basename(result.filePath),
           isVideo,
-          caption: result.track.title,
-          duration: result.track.duration || undefined,
-          title: result.track.title,
+          caption: result.resource.title,
+          duration: result.resource.duration || undefined,
+          title: result.resource.title,
         });
         return;
       }

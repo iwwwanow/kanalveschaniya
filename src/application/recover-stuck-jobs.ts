@@ -14,7 +14,7 @@ export type RecoverStuckJobsFn = (log: WorkerLog) => Promise<void>;
 // Startup-only. A job stuck in 'processing' means the whole process died mid-download
 // (OOM-kill, pod restart from a stuck liveness probe) — the in-process catch in
 // process-download-job.ts never ran, so `retries` was never incremented and the normal
-// exhaustion check never fired. Without this, a track whose own download crashes the
+// exhaustion check never fired. Without this, a resource whose own download crashes the
 // process retries forever: crash -> reset to pending -> claimed again -> crashes again,
 // no cap. Counting the crash itself as an attempt closes that loop.
 export function createRecoverStuckJobs(deps: RecoverStuckJobsDeps): RecoverStuckJobsFn {

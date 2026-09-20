@@ -2,11 +2,11 @@ import { unlink } from "fs/promises";
 import { config } from "../config";
 import { type QueueItem, type QueueRepository, QueueStatus, MAX_RETRIES, backoffSeconds } from "../domain/queue";
 import { BlockReason } from "../domain/block-reason";
-import type { Track } from "../domain/resource";
+import type { Resource } from "../domain/resource";
 import type { DownloaderPort, DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
-import type { TrackStorePort, TrackCachePort } from "../domain/track-cache";
+import type { ResourceStorePort, ResourceCachePort } from "../domain/resource-cache";
 import type { WorkerLog } from "./worker-log";
 
 export interface ProcessDownloadJobDeps {
@@ -14,9 +14,9 @@ export interface ProcessDownloadJobDeps {
   downloader: DownloaderPort;
   // Сторы, которые умеют не только хранить, но и раздать трек пользователю (сейчас —
   // telegram-канал). Единственный источник cache-hit и доставки.
-  caches: TrackCachePort[];
+  caches: ResourceCachePort[];
   // Сторы только для хранения (например fs-архив) — участвуют лишь в save().
-  archives: TrackStorePort[];
+  archives: ResourceStorePort[];
   notifier: NotifierPort;
   errorLog: ErrorLogRepository;
   // Playlist fan-out spawns brand-new queue jobs (application-owned, generic) that still
@@ -50,32 +50,32 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
   // локальную копию не значит суметь её раздать (доставка всё равно только через
   // Telegram), локальная копия — архив, не источник дедупа, см. docs/specs/types.md.
   // Сам deliver() вызывающий код делает отдельным явным шагом — не спрятан внутри find.
-  async function findDeliverable(trackId: string): Promise<{ store: TrackCachePort; track: Track } | null> {
+  async function findDeliverable(resourceId: string): Promise<{ store: ResourceCachePort; resource: Resource } | null> {
     for (const store of deps.caches) {
-      const track = await store.find(trackId);
-      if (track) return { store, track };
+      const resource = await store.find(resourceId);
+      if (resource) return { store, resource };
     }
     return null;
   }
 
-  async function handlePlaylist(job: QueueItem, entries: Track[], log: WorkerLog) {
+  async function handlePlaylist(job: QueueItem, entries: Resource[], log: WorkerLog) {
     let cached = 0;
     let queued = 0;
 
     for (const entry of entries) {
-      const hit = await findDeliverable(entry.trackId);
+      const hit = await findDeliverable(entry.resourceId);
       if (hit) {
-        await hit.store.deliver(hit.track, job.id);
+        await hit.store.deliver(hit.resource, job.id);
         cached++;
         continue;
       }
 
-      const existing = await deps.queue.findPendingByTrackId(entry.trackId);
+      const existing = await deps.queue.findPendingByResourceId(entry.resourceId);
       if (!existing) {
         const childId = await deps.queue.enqueue({
           url: entry.url,
           userId: job.userId,
-          trackId: entry.trackId,
+          resourceId: entry.resourceId,
         });
         await deps.registerPlaylistEntryOrigin(childId, job.userId);
         queued++;
@@ -89,10 +89,10 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
   // Returns true when the job's terminal status has already been written (permanent
   // failure) — in that case the caller must NOT also mark it 'done'.
   async function runJob(job: QueueItem, log: WorkerLog): Promise<boolean> {
-    let trackId = job.trackId;
+    let resourceId = job.resourceId;
     let url = job.url;
 
-    if (!trackId) {
+    if (!resourceId) {
       const info = await deps.downloader.getInfo(url);
 
       if ("entries" in info) {
@@ -101,14 +101,14 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
         return false;
       }
 
-      trackId = info.trackId;
+      resourceId = info.resourceId;
       url = info.url;
     }
 
-    const hit = await findDeliverable(trackId);
+    const hit = await findDeliverable(resourceId);
     if (hit) {
-      log.info(`job ${job.id} | cache hit | track_id=${trackId}`);
-      await hit.store.deliver(hit.track, job.id);
+      log.info(`job ${job.id} | cache hit | resource_id=${resourceId}`);
+      await hit.store.deliver(hit.resource, job.id);
       return false;
     }
 
@@ -120,17 +120,17 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       return true;
     }
 
-    log.info(`job ${job.id} | downloaded | ${result.track.title}`);
+    log.info(`job ${job.id} | downloaded | ${result.resource.title}`);
 
     const fileSize = Bun.file(result.filePath).size;
     if (fileSize > config.maxFileSizeBytes) {
       await unlink(result.filePath).catch(() => {});
-      log.warn(`job ${job.id} | skipped — exceeds 50MB | ${result.track.title}`);
+      log.warn(`job ${job.id} | skipped — exceeds 50MB | ${result.resource.title}`);
       await failPermanently(
         job,
         {
           ok: false,
-          error: `Трек "${result.track.title}" превышает лимит 50MB и был пропущен`,
+          error: `Трек "${result.resource.title}" превышает лимит 50MB и был пропущен`,
           blockReason: BlockReason.TooLarge,
           retryable: false,
         },
@@ -143,16 +143,16 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
     let delivered = false;
     for (const store of deps.caches) {
       log.info(`job ${job.id} | store=${store.name} | save start`);
-      await store.save(result.track, result.filePath);
+      await store.save(result.resource, result.filePath);
       log.info(`job ${job.id} | store=${store.name} | save done`);
       log.info(`job ${job.id} | store=${store.name} | deliver start`);
-      await store.deliver(result.track, job.id);
+      await store.deliver(result.resource, job.id);
       log.info(`job ${job.id} | store=${store.name} | deliver done`);
       delivered = true;
     }
     for (const store of deps.archives) {
       log.info(`job ${job.id} | store=${store.name} | save start`);
-      await store.save(result.track, result.filePath);
+      await store.save(result.resource, result.filePath);
       log.info(`job ${job.id} | store=${store.name} | save done`);
     }
 
@@ -163,7 +163,7 @@ export function createProcessDownloadJob(deps: ProcessDownloadJobDeps): ProcessD
       await deps.notifier.notify(job.id, result);
     }
 
-    // Все TrackStorePort.save() только читают/копируют исходник, никогда не забирают
+    // Все ResourceStorePort.save() только читают/копируют исходник, никогда не забирают
     // владение им (см. docs/specs/types.md) — временный файл всегда чистим сами.
     await unlink(result.filePath).catch(() => {});
 

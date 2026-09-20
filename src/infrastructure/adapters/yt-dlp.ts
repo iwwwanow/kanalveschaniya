@@ -1,7 +1,7 @@
 import { mkdirSync } from "fs";
 import { join } from "path";
 import { config } from "../../config";
-import type { Track } from "../../domain/resource";
+import type { Resource } from "../../domain/resource";
 import type { DownloadResult, DownloaderPort } from "../../domain/download";
 import { BlockReason } from "../../domain/block-reason";
 
@@ -57,9 +57,9 @@ async function runYtDlpOrThrow(args: string[]): Promise<string> {
   return stdout;
 }
 
-function metaToTrack(meta: YtDlpMeta): Track {
+function metaToResource(meta: YtDlpMeta): Resource {
   return {
-    trackId: meta.id,
+    resourceId: meta.id,
     // Flat-playlist entries have `url`, not `webpage_url` — both handled here.
     url: meta.webpage_url ?? meta.url ?? "",
     title: meta.title,
@@ -78,10 +78,10 @@ export function createYtDlpDownloader(): DownloaderPort {
         if (!config.allowPlaylistDownloads) {
           throw new Error(`playlist refused (ALLOW_PLAYLIST_DOWNLOADS=false) — ${raw.entries!.length} entries at ${url}`);
         }
-        return { entries: raw.entries!.map(metaToTrack) };
+        return { entries: raw.entries!.map(metaToResource) };
       }
 
-      return metaToTrack(raw);
+      return metaToResource(raw);
     },
 
     async download(url): Promise<DownloadResult> {
@@ -95,13 +95,13 @@ export function createYtDlpDownloader(): DownloaderPort {
         // this would silently download every entry in sequence. See incident 2026-08-26.
         //
         // Refused unconditionally, independent of ALLOW_PLAYLIST_DOWNLOADS: that flag only
-        // governs whether getInfo() fans a playlist out into individual per-track jobs.
-        // download() always downloads exactly one track and returns exactly one
+        // governs whether getInfo() fans a playlist out into individual per-resource jobs.
+        // download() always downloads exactly one resource and returns exactly one
         // DownloadResult — it has no way to represent N files from one call, so letting
         // a playlist object through here (as the old `&& !config.allowPlaylistDownloads`
         // guard did) meant every entry after the first silently overwrote the previous
         // one on disk (outputTemplate keyed on the aggregate's own id, not each entry's),
-        // and the DB ended up caching the wrong track's id/title/duration entirely.
+        // and the DB ended up caching the wrong resource's id/title/duration entirely.
         const isPlaylist = meta._type === "playlist" || Array.isArray(meta.entries);
         if (isPlaylist) {
           return {
@@ -137,7 +137,7 @@ export function createYtDlpDownloader(): DownloaderPort {
         const ext = isVideo ? "mp4" : "mp3";
         const filePath = join(config.tmpDir, `${meta.id}.${ext}`);
 
-        return { ok: true, track: metaToTrack(meta), filePath };
+        return { ok: true, resource: metaToResource(meta), filePath };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
 

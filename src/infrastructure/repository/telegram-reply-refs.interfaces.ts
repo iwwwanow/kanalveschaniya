@@ -1,5 +1,5 @@
 // Единственный тип адреса для ответа юзеру — используется presentation-хендлерами и
-// реализациями NotifierPort/TrackCachePort. Живёт в data/telegram.db.
+// реализациями NotifierPort/ResourceCachePort. Живёт в data/telegram.db.
 //
 // messageId: number | null — amended from the docs/specs/types.md draft (which had it as
 // plain `number`) per the noble-canyon plan: legacy-migrated queue rows and playlist

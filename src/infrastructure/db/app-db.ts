@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { join } from "path";
 
-// app.db — application/domain-owned: queue, resource (Track), error_log.
+// app.db — application/domain-owned: queue, resource (Resource), error_log.
 // No telegram-specific columns (see docs/diary/2026-08-22_..., audit finding #1).
 export function openAppDb(dataDir: string): Database {
   const db = new Database(join(dataDir, "app.db"), { create: true });

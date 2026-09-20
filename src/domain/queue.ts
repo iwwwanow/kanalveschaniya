@@ -9,7 +9,7 @@ export enum QueueStatus {
 
 // Shared with the crash-recovery path (infra/workers/recover-stuck-jobs.ts) so a process
 // crash mid-download counts as an attempt the same way an in-process failure does —
-// otherwise a track whose download crashes the whole process retries forever.
+// otherwise a resource whose download crashes the whole process retries forever.
 export const MAX_RETRIES = 3;
 
 export function backoffSeconds(retries: number): number {
@@ -19,7 +19,7 @@ export function backoffSeconds(retries: number): number {
 export interface QueueItem {
   id: number;
   url: string;
-  trackId: string | null; // null until a playlist/single URL is resolved via DownloaderPort.getInfo
+  resourceId: string | null; // null until a playlist/single URL is resolved via DownloaderPort.getInfo
   userId: number;
   status: QueueStatus;
   error: string | null;
@@ -30,9 +30,9 @@ export interface QueueItem {
 }
 
 export interface QueueRepository {
-  enqueue(item: Pick<QueueItem, "url" | "userId"> & Partial<Pick<QueueItem, "trackId">>): Promise<number>;
+  enqueue(item: Pick<QueueItem, "url" | "userId"> & Partial<Pick<QueueItem, "resourceId">>): Promise<number>;
   findPendingByUrl(url: string): Promise<QueueItem | null>;
-  findPendingByTrackId(trackId: string): Promise<QueueItem | null>;
+  findPendingByResourceId(resourceId: string): Promise<QueueItem | null>;
   claim(): Promise<QueueItem | null>;
   updateStatus(id: number, status: QueueStatus, patch?: Partial<QueueItem>): Promise<void>;
   // staggerSeconds spaces out retry_after across the matched rows (0, staggerSeconds,

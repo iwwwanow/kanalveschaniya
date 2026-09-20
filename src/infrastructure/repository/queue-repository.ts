@@ -20,7 +20,7 @@ function toQueueItem(row: QueueRow): QueueItem {
   return {
     id: row.id,
     url: row.url,
-    trackId: row.track_id,
+    resourceId: row.track_id,
     userId: row.user_id,
     status: row.status,
     error: row.error,
@@ -37,7 +37,7 @@ export function createQueueRepository(db: Database): QueueRepository {
       const result = db.run(`INSERT INTO queue (url, user_id, track_id) VALUES (?, ?, ?)`, [
         item.url,
         item.userId,
-        item.trackId ?? null,
+        item.resourceId ?? null,
       ]);
       return Number(result.lastInsertRowid);
     },
@@ -51,12 +51,12 @@ export function createQueueRepository(db: Database): QueueRepository {
       return row ? toQueueItem(row) : null;
     },
 
-    async findPendingByTrackId(trackId) {
+    async findPendingByResourceId(resourceId) {
       const row = db
         .query<QueueRow, [string]>(
           `SELECT * FROM queue WHERE track_id = ? AND status IN ('pending', 'processing') ORDER BY id ASC LIMIT 1`
         )
-        .get(trackId);
+        .get(resourceId);
       return row ? toQueueItem(row) : null;
     },
 

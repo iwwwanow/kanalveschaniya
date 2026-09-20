@@ -1,11 +1,11 @@
-export interface Track {
-  trackId: string;
+export interface Resource {
+  resourceId: string;
   url: string;
   title: string;
   duration: number;
 }
 
 export interface ResourceRepository {
-  findByTrackId(trackId: string): Promise<Track | null>;
-  save(track: Track): Promise<void>;
+  findByResourceId(resourceId: string): Promise<Resource | null>;
+  save(resource: Resource): Promise<void>;
 }

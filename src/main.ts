@@ -8,13 +8,13 @@ import { createQueueRepository } from "./infrastructure/repository/queue-reposit
 import { createErrorLogRepository } from "./infrastructure/repository/error-log-repository";
 import { createResourceRepository } from "./infrastructure/repository/resource-repository";
 import { createTelegramReplyRefsRepository } from "./infrastructure/repository/telegram-reply-refs";
-import { createTelegramTrackRefsRepository } from "./infrastructure/repository/telegram-track-refs";
+import { createTelegramResourceRefsRepository } from "./infrastructure/repository/telegram-resource-refs";
 import { createTelegramUsersRepository } from "./infrastructure/repository/telegram-users";
 import { createYtDlpDownloader } from "./infrastructure/adapters/yt-dlp";
 import { createTelegramNotifier } from "./infrastructure/adapters/telegram-notifier";
 import { createTelegramChannelCache } from "./infrastructure/adapters/telegram-channel-cache";
 import { createFsCacheAdapter } from "./infrastructure/adapters/fs-cache-adapter";
-import type { TrackStorePort, TrackCachePort } from "./domain/track-cache";
+import type { ResourceStorePort, ResourceCachePort } from "./domain/resource-cache";
 import { createEnqueueDownload } from "./application/enqueue-download";
 import { createGetUserQueueStatus } from "./application/get-user-queue-status";
 import { createRecoverStuckJobs } from "./application/recover-stuck-jobs";
@@ -36,7 +36,7 @@ const telegramDb = openTelegramDb(dataDir);
 const queueRepo = createQueueRepository(appDb);
 const resourceRepo = createResourceRepository(appDb);
 const replyRefs = createTelegramReplyRefsRepository(telegramDb);
-const trackRefs = createTelegramTrackRefsRepository(telegramDb);
+const resourceRefs = createTelegramResourceRefsRepository(telegramDb);
 const users = createTelegramUsersRepository(telegramDb);
 const errorLog = createErrorLogRepository(appDb);
 const downloader = createYtDlpDownloader();
@@ -53,15 +53,15 @@ const bot = createBot({
 
 const notifier = createTelegramNotifier({ bot, replyRefs });
 
-const caches: TrackCachePort[] = [];
-const archives: TrackStorePort[] = [];
+const caches: ResourceCachePort[] = [];
+const archives: ResourceStorePort[] = [];
 if (config.cacheToChannel) {
   caches.push(
     createTelegramChannelCache({
       bot,
       channelId: config.channelId,
       resource: resourceRepo,
-      trackRefs,
+      resourceRefs,
       replyRefs,
     })
   );

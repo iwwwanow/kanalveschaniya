@@ -3,7 +3,7 @@ import type { QueueRepository } from "../domain/queue";
 export interface EnqueueDownloadInput {
   url: string;
   userId: number;
-  trackId?: string | null;
+  resourceId?: string | null;
 }
 
 export type EnqueueDownloadResult =
@@ -12,13 +12,13 @@ export type EnqueueDownloadResult =
 
 export type EnqueueDownloadFn = (input: EnqueueDownloadInput) => Promise<EnqueueDownloadResult>;
 
-// Dedup semantics preserved from the pre-refactor bot/handlers.ts: a URL/trackId already
+// Dedup semantics preserved from the pre-refactor bot/handlers.ts: a URL/resourceId already
 // pending or processing is not re-queued, and the second requester is NOT attached as a
 // new delivery target — only the original job's reply-ref gets notified on completion.
 export function createEnqueueDownload(queue: QueueRepository): EnqueueDownloadFn {
   return async function enqueueDownload(input) {
-    const existing = input.trackId
-      ? await queue.findPendingByTrackId(input.trackId)
+    const existing = input.resourceId
+      ? await queue.findPendingByResourceId(input.resourceId)
       : await queue.findPendingByUrl(input.url);
 
     if (existing) {
@@ -28,7 +28,7 @@ export function createEnqueueDownload(queue: QueueRepository): EnqueueDownloadFn
     const jobId = await queue.enqueue({
       url: input.url,
       userId: input.userId,
-      trackId: input.trackId ?? null,
+      resourceId: input.resourceId ?? null,
     });
 
     return { status: "queued", jobId };
