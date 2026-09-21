@@ -16,6 +16,7 @@ infrastructure.adapters -> domain.ports: implements
 application -> domain
 
 domain.ports.resource-cache -> domain.ports.resource-store: extends
+domain.ports.resource-archive -> domain.ports.resource-store: extends
 domain.ports.resource-cache -> domain.ports.delivery: extends
 
 # telegram-репозитории: интерфейсы живут в самой infrastructure (не в domain),
@@ -76,6 +77,9 @@ domain: {
     notifier
     resource-store
     delivery
+    resource-archive: {
+      label: "resource-archive\n(resource-store + findFile)"
+    }
     resource-cache: {
       label: "resource-cache\n(resource-store + delivery)"
     }
