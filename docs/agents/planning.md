@@ -138,7 +138,7 @@ Drizzle (`feat(db)!`): схема БД несовместима с 2.x — **п�
       `Bun.file(path)` в `FormData` (`adapters/telegram-client/send-media.ts`), двойная буферизация ушла. Гипотеза
       «`Bun.file().size` даёт тот же known-length, что `Blob`, и CONNECT-прокси не рвёт соединение» **не проверена
       вживую** (диари 2026-09-06). Оставить открытым до проверки на Pi с длинным треком; из «самого горячего»
-      снято. Подробности — `docs/backlog/2026-08-26_upload-buffers-full-file-oom.md`.
+      снято. Подробности — `docs/backlog/2026-08-26_upload-buffers-full-file-oom.md`; порядок проверки после деплоя — `docs/backlog/2026-09-21_verify-long-upload-on-pi-after-deploy.md`.
 - [x] **Разделить "download" и "upload" на разные события очереди — сделано 2026-09-20** (статус `downloaded` в той же `queue`, два пула воркеров, доставка ретраится без перекачки; см. `CLAUDE.md`, «Database»). Сейчас один retry-цикл на оба шага —
       если падает только аплоад в Telegram, трек перекачивается заново.
       Подробности — `docs/backlog/2026-08-26_split-download-send-queue-events.md`.
