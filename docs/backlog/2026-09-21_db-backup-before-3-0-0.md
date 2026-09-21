@@ -8,4 +8,5 @@
 Зачем: схема 3.0.0 несовместима с 2.x (`track_id` → `resource_id`, `telegram_track_refs` → `telegram_resource_refs`, Drizzle, новые колонки `queue`), откатить образ
 на старый без копии БД нельзя. Восстановление: остановить бота (Flux вернёт ручной `scale` — менять надо образ/манифест в репозитории `infrastructure`), положить
 `app.db`/`telegram.db` из копии на место `/mnt/storage/data/`, удалить рядом `app.db-wal`, `app.db-shm`, `telegram.db-wal`, `telegram.db-shm`, запустить образ `2.0.3`
-(тег закреплён в манифесте). Удалять копию — когда 3.0.0 поработает без проблем.
+(в манифесте сейчас `:latest`, поэтому на время отката тег `2.0.3` надо закрепить в `iwwwanow_infrastructure/apps/dietpi/kanalveschaniya/deployment.yaml`
+и закоммитить — иначе рестарт снова потянет свежий `latest`). Удалять копию — когда 3.0.0 поработает без проблем.
