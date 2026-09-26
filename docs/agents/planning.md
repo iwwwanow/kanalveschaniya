@@ -29,6 +29,11 @@ Telegram-бот для скачивания музыки/видео через y
   перезаписывал предыдущий на диске и в БД кэшировался чужой id/title, см.
   `docs/backlog/2026-09-06_soundcloud-sets-duration-wrong-file-cached.md`); `b0ac9a8` — geo-requeue
   растягивается по времени (стаггер 30с), чтобы не давать всплеск при холодном старте.
+- 2026-09-26 (диари `2026-09-26_token-in-logs-and-polling-crash.md`): `ECONNRESET` на `getUpdates` больше не
+  роняет процесс (`startBot` перезапускает polling сам — Telegraf ретраит только `FetchError`, а под Bun
+  нативный fetch бросает обычный `Error` с `code: ECONNRESET`), и токен бота больше не может попасть в логи
+  (`src/redact.ts` + guard'ы `unhandledRejection`/`uncaughtException` в `main.ts`; Bun печатал URL из поля
+  `path` ошибки). **Осталось руками: перевыпустить токен в @BotFather** — старый лежит в логах пода на Pi.
 
 ## Релиз 3.0.0 — что вошло и что осталось (2026-09-20)
 
