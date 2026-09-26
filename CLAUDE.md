@@ -33,7 +33,8 @@ bun run typecheck
 Clean architecture: dependencies point inward — `infrastructure -> application -> domain`. Diagrams:
 `docs/diagrams/core.d2` (layers and ports), `core.infrastructure.ports.d2` (which infra implements which port)
 and `core.infrastructure.telegram.d2` (where Telegram plugs in). One diagram = one question, ≤ ~12 nodes.
-Types/ports spec — `docs/specs/types.md`.
+Types/ports live in `src/domain/` and `src/application/` — read those directly, they're the source of truth
+(the standalone `docs/specs/types.md` spec was removed as stale against them).
 
 ```
 src/
@@ -187,5 +188,5 @@ Versioning via conventional commits. Config in `.releaserc.json`.
 - `docs/agents/planning.md` — architecture decisions and task priority
 - `docs/agents/list.md` — todo list
 - `docs/agents/testing.md` — test scenarios
-- `docs/specs/types.md` — types/ports spec; `docs/diagrams/*.d2` — architecture diagrams
+- `docs/specs/` — specs for individual features/services (e.g. `session-app.specs.md`); `docs/diagrams/*.d2` — architecture diagrams
 - `docs/backlog/`, `docs/diary/` — standalone notes and session logs

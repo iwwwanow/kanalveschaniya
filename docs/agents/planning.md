@@ -5,7 +5,8 @@
 Telegram-бот для скачивания музыки/видео через yt-dlp с кэшированием через приватный Telegram-канал.
 
 Архитектура, стек, схема БД, env vars — актуальное описание в корневом `CLAUDE.md`, здесь не дублируется.
-Спецификации: `docs/specs/telegram-bot.md` (хендлеры), `docs/specs/types.md` (типы/порты), `docs/diagrams/core.d2` (схема слоёв).
+Спецификации: `docs/specs/` (по фичам/сервисам, напр. `session-app.specs.md`), `docs/diagrams/core.d2` (схема слоёв).
+Типы/порты — исходник теперь `src/domain/`+`src/application/`, отдельный `docs/specs/types.md` устарел и удалён.
 
 ## Статус
 
