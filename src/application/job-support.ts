@@ -2,10 +2,13 @@ import type { DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import { type QueueItem, type QueueRepository, QueueStatus } from "../domain/queue";
+import { redact } from "../redact";
 import type { WorkerLog } from "./worker-log";
 
+// Redacted: this string is persisted (error_log, queue.error) and can end up in a reply to the
+// user, so a token that leaked into an error message must not survive here either.
 export function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return redact(err instanceof Error ? err.message : String(err));
 }
 
 export interface FailJobDeps {

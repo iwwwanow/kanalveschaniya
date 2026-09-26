@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { describeError, redact } from "./redact";
 
 type Level = "info" | "warn" | "error" | "debug";
 
@@ -26,8 +27,15 @@ function ts(): string {
   return chalk.dim(new Date().toISOString().replace("T", " ").slice(0, 19));
 }
 
+// Every argument passes through redact(): a thrown value may carry the bot token (Bun's fetch
+// errors keep the full request URL in `path`), and nothing logged is worth leaking it — see
+// redact.ts.
+function format(arg: unknown): string {
+  return arg instanceof Error ? describeError(arg) : redact(String(arg));
+}
+
 function log(level: Level, tag: string, ...args: unknown[]) {
-  const line = [ts(), LEVEL_TAG[level], tag, ...args.map(String)].join(" ");
+  const line = [ts(), LEVEL_TAG[level], tag, ...args.map(format)].join(" ");
   if (level === "error") {
     console.error(line);
   } else {

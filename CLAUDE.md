@@ -37,9 +37,10 @@ Types/ports spec — `docs/specs/types.md`.
 
 ```
 src/
-├── main.ts               # composition root — opens DBs, creates repos/adapters/use-cases, recovers stuck jobs, starts poller + health server, bot.launch()
+├── main.ts               # composition root — opens DBs, creates repos/adapters/use-cases, recovers stuck jobs, installs process guards, starts poller + health server + bot (startBot)
 ├── config.ts             # env vars (throws if BOT_TOKEN/CHANNEL_ID missing)
 ├── logger.ts             # chalk logger: logger.info/warn/error, logger.bot.*, logger.worker(id)
+├── redact.ts             # masks the bot token in anything logged/persisted (registerSecret/redact/describeError)
 ├── domain/               # no dependencies: entities, ports, repository interfaces
 │   ├── resource.ts       # Resource (a downloaded track/video), ResourceRepository
 │   ├── queue.ts          # QueueItem, QueueStatus (enum), QueueRepository, MAX_RETRIES/backoffSeconds
@@ -57,7 +58,7 @@ src/
 │   ├── requeue-blocked-jobs.ts   # requeue jobs by BlockReason, staggered
 │   └── worker-log.ts
 └── infrastructure/
-    ├── presentation/     # telegram-bot, telegram-handlers, extract-url, health-server (/healthz)
+    ├── presentation/     # telegram-bot (createBot + startBot), telegram-handlers, extract-url, health-server (/healthz)
     ├── adapters/         # yt-dlp (DownloaderPort), telegram-notifier (NotifierPort),
     │                     # telegram-channel-cache (ResourceCachePort), fs-cache-adapter (ResourceStorePort),
     │                     # telegram-client/send-media (shared upload helper, implements no port)
@@ -119,6 +120,23 @@ The `queue.error` field only keeps the last error.
 - Retry logic: max 3 attempts per stage, exponential backoff between retries
 - Permanent failures (no retry): HTTP 404, geo restriction, DRM, over 50MB — the job goes to `failed`, the
   user is notified (`NotifierPort`)
+
+## Logging and secrets
+
+Every Bot API url contains the token, and Bun's fetch errors keep the full url in their `path` field, so a
+raw error print leaks it (it happened on 2026-09-23 — see `docs/diary/2026-09-26_token-in-logs-and-polling-crash.md`).
+Therefore:
+
+- `logger.*` pushes every argument through `redact()` (`src/redact.ts`) — the token pattern plus the exact
+  token registered by `registerSecret(config.botToken)` in `main.ts`. `errorMessage()` (`application/job-support.ts`)
+  redacts too, since it is persisted in `error_log` / `queue.error`.
+- `main.ts` installs `unhandledRejection` / `uncaughtException` handlers so nothing is printed by Bun's own
+  (unredacted) handler. A rejection is logged and survived; an uncaught exception is logged and exits 1.
+- Never `console.log` an error object directly — use the logger.
+- `startBot` (`presentation/telegram-bot.ts`) restarts long polling in-process: telegraf only retries
+  getUpdates errors named `FetchError`, and Bun's native fetch (which also shims `node-fetch`) throws plain
+  `Error` with `code: "ECONNRESET"`, which used to kill the process. `bot.catch` keeps a failing handler from
+  tearing polling down.
 
 ## Bot texts
 

@@ -3,6 +3,7 @@ import { join } from "path";
 import { logger } from "./logger";
 import { assertTextsValid } from "./infrastructure/localization/t";
 import { config } from "./config";
+import { registerSecret } from "./redact";
 import { openAppDb } from "./infrastructure/db/app-db";
 import { openTelegramDb } from "./infrastructure/db/telegram-db";
 import { createQueueRepository } from "./infrastructure/repository/queue-repository";
@@ -23,12 +24,28 @@ import { createRequeueBlockedJobs } from "./application/requeue-blocked-jobs";
 import { BlockReason } from "./domain/block-reason";
 import { createDownloadJob } from "./application/download-job";
 import { createDeliverJob } from "./application/deliver-job";
-import { createBot } from "./infrastructure/presentation/telegram-bot";
+import { createBot, startBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePollers } from "./infrastructure/workers/queue-poller";
 
 // Fail on boot (not mid-reply) if telegram.localization.json was edited into an invalid state.
 assertTextsValid();
+
+// Before anything can log: the token must never reach stdout/stderr (see redact.ts).
+registerSecret(config.botToken);
+
+// Bun's default handlers print the raw thrown value, and its fetch errors carry the full request
+// URL — bot token included — in `path`. Anything that escapes to the process level is logged
+// through the redacting logger instead.
+process.on("unhandledRejection", (reason) => {
+  // Not fatal on purpose: the pollers and the bot runner each own their restart, so staying up
+  // beats the crash loop of 2026-09-23. A process that is actually wedged is caught by /healthz.
+  logger.error("unhandled rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  logger.error("uncaught exception, exiting:", err);
+  process.exit(1);
+});
 
 // DATA_DIR handling preserved as-is (read directly, not via config.ts) — resolves
 // app.db + telegram.db.
@@ -114,8 +131,8 @@ startQueuePollers({ queue: queueRepo, downloadJob, deliverJob });
 
 startHealthServer(config.healthPort);
 
-bot.launch();
+const botRunner = startBot(bot);
 logger.bot.info("started");
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+process.once("SIGINT", () => botRunner.stop("SIGINT"));
+process.once("SIGTERM", () => botRunner.stop("SIGTERM"));
