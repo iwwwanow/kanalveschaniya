@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY src/ ./src/
+COPY apps/core/src/ ./apps/core/src/
 # SQL migrations (drizzle-kit output), applied on startup by openAppDb/openTelegramDb
-COPY drizzle/ ./drizzle/
+COPY apps/core/drizzle/ ./apps/core/drizzle/
 COPY tsconfig.json ./
 
 ENV NODE_ENV=production
@@ -27,4 +27,4 @@ ENV TZ=Europe/Moscow
 
 VOLUME ["/app/data", "/app/content", "/tmp/ytdlp"]
 
-CMD ["bun", "run", "src/main.ts"]
+CMD ["bun", "run", "apps/core/src/main.ts"]

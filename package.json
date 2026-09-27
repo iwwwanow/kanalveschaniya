@@ -1,15 +1,15 @@
 {
   "name": "iwwwanow_kanalveschaniya",
   "version": "0.0.0",
-  "module": "src/main.ts",
+  "module": "apps/core/src/main.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch src/main.ts",
-    "start": "bun run src/main.ts",
+    "dev": "bun run --watch apps/core/src/main.ts",
+    "start": "bun run apps/core/src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "db:generate": "drizzle-kit generate --config drizzle.app.config.ts && drizzle-kit generate --config drizzle.telegram.config.ts"
+    "db:generate": "cd apps/core && drizzle-kit generate --config drizzle.app.config.ts && drizzle-kit generate --config drizzle.telegram.config.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
