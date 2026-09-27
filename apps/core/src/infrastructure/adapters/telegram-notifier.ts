@@ -2,7 +2,7 @@ import type { Telegraf } from "telegraf";
 import { basename } from "path";
 import type { DownloadResult } from "../../domain/download";
 import type { NotifierPort } from "../../domain/notifier";
-import { BlockReason } from "../../domain/block-reason";
+import { BlockReason } from "shared-queue";
 import type { TelegramReplyRefsRepository } from "../repository/telegram-reply-refs.interfaces";
 import { sendMedia } from "./telegram-client/send-media";
 import { t, type TextKey } from "../localization/t";

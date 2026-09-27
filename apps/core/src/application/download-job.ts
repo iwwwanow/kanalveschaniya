@@ -1,7 +1,7 @@
 import { rename, unlink } from "fs/promises";
 import { basename, dirname, join } from "path";
 import { type QueueItem, type QueueRepository, QueueStatus, MAX_RETRIES, backoffSeconds } from "../domain/queue";
-import { BlockReason } from "../domain/block-reason";
+import { BlockReason } from "shared-queue";
 import type { Resource, ResourceRepository } from "../domain/resource";
 import type { DownloaderPort } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";

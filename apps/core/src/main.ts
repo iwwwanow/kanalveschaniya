@@ -21,7 +21,7 @@ import { createEnqueueDownload } from "./application/enqueue-download";
 import { createGetUserQueueStatus } from "./application/get-user-queue-status";
 import { createRecoverStuckJobs } from "./application/recover-stuck-jobs";
 import { createRequeueBlockedJobs } from "./application/requeue-blocked-jobs";
-import { BlockReason } from "./domain/block-reason";
+import { BlockReason } from "shared-queue";
 import { createDownloadJob } from "./application/download-job";
 import { createDeliverJob } from "./application/deliver-job";
 import { createBot, startBot } from "./infrastructure/presentation/telegram-bot";

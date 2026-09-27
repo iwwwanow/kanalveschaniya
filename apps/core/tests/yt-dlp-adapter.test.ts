@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
-import { BlockReason } from "../src/domain/block-reason";
+import { BlockReason } from "shared-queue";
 import { tmpDir } from "./helpers";
 
 // A fake `yt-dlp` (YT_DLP_PATH points to it): `-J` prints metadata with the duration from the `duration`

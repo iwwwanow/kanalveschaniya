@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "fs";
 import { createRecoverStuckJobs } from "../src/application/recover-stuck-jobs";
-import { BlockReason } from "../src/domain/block-reason";
+import { BlockReason } from "shared-queue";
 import { rig } from "./helpers";
 
 const errorLogCount = (r: ReturnType<typeof rig>) =>

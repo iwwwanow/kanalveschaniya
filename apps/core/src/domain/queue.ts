@@ -1,17 +1,8 @@
-import type { BlockReason } from "./block-reason";
-
-// A job goes through two stages, each with its own in-flight state and retry budget:
-//   download: pending -> processing -> downloaded   (the file is staged on disk)
-//   deliver:  downloaded -> delivering -> done      (stores + sending to the user)
-// so a failing delivery is retried without downloading the resource again.
-export enum QueueStatus {
-  Pending = "pending",
-  Processing = "processing", // download in flight
-  Downloaded = "downloaded", // file staged (QueueItem.filePath), waiting for delivery
-  Delivering = "delivering", // delivery in flight
-  Done = "done",
-  Failed = "failed",
-}
+// QueueStatus and the queue table itself are the shared kernel with session-service — see
+// packages/shared-queue. Everything below (QueueItem, QueueRepository, retry budget) stays
+// core-only: session-service never claims/delivers a job, it only reads/requeues by BlockReason.
+import { QueueStatus, type BlockReason } from "shared-queue";
+export { QueueStatus };
 
 // Shared with the crash-recovery path (infra/workers/recover-stuck-jobs.ts) so a process
 // crash mid-download counts as an attempt the same way an in-process failure does —

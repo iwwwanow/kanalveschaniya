@@ -13,6 +13,7 @@
   "dependencies": {
     "chalk": "^5.6.2",
     "drizzle-orm": "^0.45.2",
+    "shared-queue": "workspace:*",
     "telegraf": "^4.16.3"
   }
 }

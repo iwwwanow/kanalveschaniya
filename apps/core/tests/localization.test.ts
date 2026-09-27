@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { BlockReason } from "../src/domain/block-reason";
+import { BlockReason } from "shared-queue";
 import texts from "../src/infrastructure/localization/telegram.localization.json";
 import { TEXT_PARAMS, assertTextsValid, t, type TextKey } from "../src/infrastructure/localization/t";
 

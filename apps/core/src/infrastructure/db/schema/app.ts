@@ -1,26 +1,14 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { QueueStatus } from "../../../domain/queue";
 
 // app.db — application/domain-owned tables. Column types mirror the tables that already exist in
 // production databases (see drizzle/app/0000_*.sql, the baseline).
 
-export const queueTable = sqliteTable("queue", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  url: text("url").notNull(),
-  resourceId: text("resource_id"),
-  userId: integer("user_id").notNull(),
-  status: text("status").$type<QueueStatus>().notNull().default("pending" as QueueStatus),
-  blockReason: text("block_reason"),
-  retries: integer("retries").notNull().default(0),
-  retryAfter: integer("retry_after").default(0),
-  error: text("error"),
-  createdAt: integer("created_at").default(sql`(unixepoch())`),
-  // staged delivery (see QueueStatus): the downloaded file and the delivery stage's own retry state
-  filePath: text("file_path"),
-  deliverRetries: integer("deliver_retries").notNull().default(0),
-  deliverRetryAfter: integer("deliver_retry_after"),
-});
+// `queue` itself is defined in packages/shared-queue (shared kernel with session-service) — core
+// still owns app.db's migrations, so it's re-exported here for drizzle-kit (which needs every
+// table for a given db visible from this one schema file) and for the rest of core to keep
+// importing it from "../db/schema/app" as before.
+export { queueTable } from "shared-queue";
 
 export const resourceTable = sqliteTable("resource", {
   resourceId: text("resource_id").primaryKey(),

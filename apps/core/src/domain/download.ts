@@ -1,5 +1,5 @@
 import type { Resource } from "./resource";
-import type { BlockReason } from "./block-reason";
+import type { BlockReason } from "shared-queue";
 
 export type DownloadResult =
   | { ok: true; resource: Resource; filePath: string }

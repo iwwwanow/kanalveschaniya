@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createRecoverStuckJobs } from "../src/application/recover-stuck-jobs";
 import { createRequeueBlockedJobs } from "../src/application/requeue-blocked-jobs";
 import { createGetUserQueueStatus } from "../src/application/get-user-queue-status";
-import { BlockReason, parseBlockReason } from "../src/domain/block-reason";
+import { BlockReason, parseBlockReason } from "shared-queue";
 import type { DownloadResult } from "../src/domain/download";
 import { createQueueRepository } from "../src/infrastructure/repository/queue-repository";
 import { newAppDb, noopLog } from "./helpers";

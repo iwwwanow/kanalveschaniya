@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "type": "module",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev:core": "bun --filter core dev",
     "start:core": "bun --filter core start",

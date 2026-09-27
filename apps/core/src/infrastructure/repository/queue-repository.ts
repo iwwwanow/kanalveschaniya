@@ -2,10 +2,8 @@ import type { Database } from "bun:sqlite";
 import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { type QueueItem, type QueueRepository, QueueStatus } from "../../domain/queue";
-import { parseBlockReason } from "../../domain/block-reason";
+import { parseBlockReason, type QueueRow } from "shared-queue";
 import { queueTable } from "../db/schema/app";
-
-type QueueRow = typeof queueTable.$inferSelect;
 
 function toQueueItem(row: QueueRow): QueueItem {
   return {

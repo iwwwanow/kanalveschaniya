@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "fs";
-import { BlockReason } from "../src/domain/block-reason";
+import { BlockReason } from "shared-queue";
 import { MB, makeFile, resource, rig, tmpDir } from "./helpers";
 
 const errorLogCount = (r: ReturnType<typeof rig>) =>

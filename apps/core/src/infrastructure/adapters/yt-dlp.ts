@@ -3,7 +3,7 @@ import { join } from "path";
 import { config } from "../../config";
 import type { Resource } from "../../domain/resource";
 import type { DownloadResult, DownloaderPort } from "../../domain/download";
-import { BlockReason } from "../../domain/block-reason";
+import { BlockReason } from "shared-queue";
 import { maxAudioDurationSeconds } from "./yt-dlp-limits";
 
 mkdirSync(config.tmpDir, { recursive: true });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { QueueStatus } from "../src/domain/queue";
-import { BlockReason } from "../src/domain/block-reason";
+import { BlockReason } from "shared-queue";
 import { openTelegramDb } from "../src/infrastructure/db/telegram-db";
 import { createErrorLogRepository } from "../src/infrastructure/repository/error-log-repository";
 import { createQueueRepository } from "../src/infrastructure/repository/queue-repository";

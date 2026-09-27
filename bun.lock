@@ -18,12 +18,20 @@
       "dependencies": {
         "chalk": "^5.6.2",
         "drizzle-orm": "^0.45.2",
+        "shared-queue": "workspace:*",
         "telegraf": "^4.16.3",
       },
     },
     "apps/session": {
       "name": "session",
       "version": "0.0.0",
+    },
+    "packages/shared-queue": {
+      "name": "shared-queue",
+      "version": "0.0.0",
+      "dependencies": {
+        "drizzle-orm": "^0.45.2",
+      },
     },
   },
   "packages": {
@@ -136,6 +144,8 @@
     "sandwich-stream": ["sandwich-stream@2.0.2", "", {}, "sha512-jLYV0DORrzY3xaz/S9ydJL6Iz7essZeAfnAavsJ+zsJGZ1MOnsS52yRjU3uF3pJa/lla7+wisp//fxOwOH8SKQ=="],
 
     "session": ["session@workspace:apps/session"],
+
+    "shared-queue": ["shared-queue@workspace:packages/shared-queue"],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
 

@@ -1,7 +1,7 @@
 import { unlink } from "fs/promises";
 import { MAX_RETRIES, QueueStatus, backoffSeconds } from "../domain/queue";
 import type { QueueItem, QueueRepository } from "../domain/queue";
-import { BlockReason } from "../domain/block-reason";
+import { BlockReason } from "shared-queue";
 import type { NotifierPort } from "../domain/notifier";
 import type { WorkerLog } from "./worker-log";
 

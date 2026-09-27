@@ -1,6 +1,6 @@
 import { QueueStatus } from "../domain/queue";
 import type { QueueRepository } from "../domain/queue";
-import type { BlockReason } from "../domain/block-reason";
+import type { BlockReason } from "shared-queue";
 
 export interface RequeueBlockedJobsInput {
   reason: BlockReason;

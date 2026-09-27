@@ -1,5 +1,9 @@
 // Why a job was permanently stopped instead of being retried. Persisted as its string value in
 // queue.block_reason — the values are the pre-enum literals, so no DB migration.
+//
+// Shared kernel between core and session-service: both write/read this column on the same
+// `queue` table (core sets geo/drm/too_large/..., session-service sets needs_cookie and
+// requeues by it once an account is usable again) — see queue-table.ts.
 export enum BlockReason {
   Geo = "geo",
   Drm = "drm",
