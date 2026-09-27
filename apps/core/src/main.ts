@@ -3,7 +3,7 @@ import { join } from "path";
 import { logger } from "./logger";
 import { assertTextsValid } from "./infrastructure/localization/t";
 import { config } from "./config";
-import { registerSecret } from "./redact";
+import { registerSecret } from "shared-secrets";
 import { openAppDb } from "./infrastructure/db/app-db";
 import { openTelegramDb } from "./infrastructure/db/telegram-db";
 import { createQueueRepository } from "./infrastructure/repository/queue-repository";

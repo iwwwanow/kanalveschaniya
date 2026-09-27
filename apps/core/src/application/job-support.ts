@@ -2,7 +2,7 @@ import type { DownloadResult } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import { type QueueItem, type QueueRepository, QueueStatus } from "../domain/queue";
-import { redact } from "../redact";
+import { redact } from "shared-secrets";
 import type { WorkerLog } from "./worker-log";
 
 // Redacted: this string is persisted (error_log, queue.error) and can end up in a reply to the

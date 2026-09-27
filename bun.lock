@@ -18,13 +18,29 @@
       "dependencies": {
         "chalk": "^5.6.2",
         "drizzle-orm": "^0.45.2",
+        "shared-logger": "workspace:*",
         "shared-queue": "workspace:*",
+        "shared-secrets": "workspace:*",
         "telegraf": "^4.16.3",
       },
     },
     "apps/session": {
       "name": "session",
       "version": "0.0.0",
+      "dependencies": {
+        "drizzle-orm": "^0.45.2",
+        "shared-logger": "workspace:*",
+        "shared-queue": "workspace:*",
+        "shared-secrets": "workspace:*",
+      },
+    },
+    "packages/shared-logger": {
+      "name": "shared-logger",
+      "version": "0.0.0",
+      "dependencies": {
+        "chalk": "^5.6.2",
+        "shared-secrets": "workspace:*",
+      },
     },
     "packages/shared-queue": {
       "name": "shared-queue",
@@ -32,6 +48,10 @@
       "dependencies": {
         "drizzle-orm": "^0.45.2",
       },
+    },
+    "packages/shared-secrets": {
+      "name": "shared-secrets",
+      "version": "0.0.0",
     },
   },
   "packages": {
@@ -145,7 +165,11 @@
 
     "session": ["session@workspace:apps/session"],
 
+    "shared-logger": ["shared-logger@workspace:packages/shared-logger"],
+
     "shared-queue": ["shared-queue@workspace:packages/shared-queue"],
+
+    "shared-secrets": ["shared-secrets@workspace:packages/shared-secrets"],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
 

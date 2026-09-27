@@ -1,17 +1,8 @@
-// QueueStatus and the queue table itself are the shared kernel with session-service — see
-// packages/shared-queue. Everything below (QueueItem, QueueRepository, retry budget) stays
-// core-only: session-service never claims/delivers a job, it only reads/requeues by BlockReason.
-import { QueueStatus, type BlockReason } from "shared-queue";
-export { QueueStatus };
-
-// Shared with the crash-recovery path (infra/workers/recover-stuck-jobs.ts) so a process
-// crash mid-download counts as an attempt the same way an in-process failure does —
-// otherwise a resource whose download crashes the whole process retries forever.
-export const MAX_RETRIES = 3;
-
-export function backoffSeconds(retries: number): number {
-  return 30 * Math.pow(2, retries);
-}
+// QueueStatus, the queue table itself, and the retry budget are the shared kernel with
+// session-service — see packages/shared-queue. QueueItem/QueueRepository below stay core-only:
+// session-service never claims/delivers a job, it only reads/requeues by BlockReason.
+import { QueueStatus, MAX_RETRIES, backoffSeconds, type BlockReason } from "shared-queue";
+export { QueueStatus, MAX_RETRIES, backoffSeconds };
 
 export interface QueueItem {
   id: number;
