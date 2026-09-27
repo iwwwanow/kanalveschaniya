@@ -1,0 +1,1 @@
+ALTER TABLE `queue` ADD `service_id` integer;

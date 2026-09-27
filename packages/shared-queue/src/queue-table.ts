@@ -15,6 +15,11 @@ export const queueTable = sqliteTable("queue", {
   userId: integer("user_id").notNull(),
   status: text("status").$type<QueueStatus>().notNull().default("pending" as QueueStatus),
   blockReason: text("block_reason"),
+  // Set at the resolve-stage preflight when a job is blocked as needs_cookie (session-service's
+  // services.url_pattern match) — null otherwise. Lets session-service's requeue scan target only
+  // the jobs of the service whose account just became usable again, instead of releasing every
+  // needs_cookie job across all cookie-requiring services at once.
+  serviceId: integer("service_id"),
   retries: integer("retries").notNull().default(0),
   retryAfter: integer("retry_after").default(0),
   error: text("error"),

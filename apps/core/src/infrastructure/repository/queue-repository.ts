@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { type QueueItem, type QueueRepository, QueueStatus } from "../../domain/queue";
 import { parseBlockReason, type QueueRow } from "shared-queue";
@@ -14,6 +14,7 @@ function toQueueItem(row: QueueRow): QueueItem {
     status: row.status,
     error: row.error,
     blockReason: parseBlockReason(row.blockReason),
+    serviceId: row.serviceId,
     retries: row.retries,
     retryAfter: row.retryAfter,
     filePath: row.filePath,
@@ -101,6 +102,10 @@ export function createQueueRepository(db: Database): QueueRepository {
       orm.update(queueTable).set({ resourceId }).where(eq(queueTable.id, id)).run();
     },
 
+    async setServiceId(id, serviceId) {
+      orm.update(queueTable).set({ serviceId }).where(eq(queueTable.id, id)).run();
+    },
+
     async updateStatus(id, status, patch) {
       const set: Partial<typeof queueTable.$inferInsert> = { status };
       if (patch?.error !== undefined) set.error = patch.error;
@@ -114,12 +119,24 @@ export function createQueueRepository(db: Database): QueueRepository {
     },
 
     // Window function + UPDATE ... FROM: the query builder has no way to express it, so raw sql.
-    async requeueByBlockReason(reason, newStatus, staggerSeconds = 0) {
+    // serviceId narrows the WHERE to just that service's jobs (session-service's per-service
+    // unblock) — omitted, behaves exactly as before (core's own geo/PROXY call site).
+    async requeueByBlockReason(reason, newStatus, staggerSeconds = 0, serviceId) {
+      const serviceFilter = serviceId !== undefined ? sql`AND service_id = ${serviceId}` : sql``;
       orm.run(sql`
         UPDATE queue SET status = ${newStatus}, retries = 0, error = NULL, block_reason = NULL,
           retry_after = unixepoch() + ranked.rn * ${staggerSeconds}
-        FROM (SELECT id, (ROW_NUMBER() OVER (ORDER BY id) - 1) AS rn FROM queue WHERE block_reason = ${reason}) AS ranked
+        FROM (SELECT id, (ROW_NUMBER() OVER (ORDER BY id) - 1) AS rn FROM queue WHERE block_reason = ${reason} ${serviceFilter}) AS ranked
         WHERE queue.id = ranked.id`);
+    },
+
+    async findDistinctServiceIdsByBlockReason(reason) {
+      const rows = orm
+        .selectDistinct({ serviceId: queueTable.serviceId })
+        .from(queueTable)
+        .where(and(eq(queueTable.blockReason, reason), isNotNull(queueTable.serviceId)))
+        .all();
+      return rows.map((r) => r.serviceId as number);
     },
 
     async findStuckProcessing() {
