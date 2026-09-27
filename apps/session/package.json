@@ -1,0 +1,9 @@
+{
+  "name": "session",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "db:generate": "echo 'apps/session: no schema yet — nothing to generate'"
+  }
+}

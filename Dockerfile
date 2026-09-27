@@ -1,6 +1,10 @@
 FROM oven/bun:1.3 AS deps
 WORKDIR /app
+# bun workspaces resolve against each member's package.json — needs them present before install,
+# not just the root one.
 COPY package.json bun.lock* bun.lockb* ./
+COPY apps/core/package.json ./apps/core/
+COPY apps/session/package.json ./apps/session/
 RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:1.3 AS runtime

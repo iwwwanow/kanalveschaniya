@@ -1,4 +1,6 @@
 {
+  // Shared base — each apps/* package has its own tsconfig.json with "extends": "../../tsconfig.json"
+  // plus its own "include" (tsc runs with cwd = that package's directory via the workspace scripts).
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext"],

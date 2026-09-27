@@ -4,11 +4,6 @@
   "workspaces": {
     "": {
       "name": "iwwwanow_kanalveschaniya",
-      "dependencies": {
-        "chalk": "^5.6.2",
-        "drizzle-orm": "^0.45.2",
-        "telegraf": "^4.16.3",
-      },
       "devDependencies": {
         "@types/bun": "latest",
         "drizzle-kit": "^0.31.10",
@@ -16,6 +11,19 @@
       "peerDependencies": {
         "typescript": "^5.9.3",
       },
+    },
+    "apps/core": {
+      "name": "core",
+      "version": "0.0.0",
+      "dependencies": {
+        "chalk": "^5.6.2",
+        "drizzle-orm": "^0.45.2",
+        "telegraf": "^4.16.3",
+      },
+    },
+    "apps/session": {
+      "name": "session",
+      "version": "0.0.0",
     },
   },
   "packages": {
@@ -97,6 +105,8 @@
 
     "chalk": ["chalk@5.6.2", "", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
 
+    "core": ["core@workspace:apps/core"],
+
     "debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 
     "drizzle-kit": ["drizzle-kit@0.31.10", "", { "dependencies": { "@drizzle-team/brocli": "^0.10.2", "@esbuild-kit/esm-loader": "^2.5.5", "esbuild": "^0.25.4", "tsx": "^4.21.0" }, "bin": { "drizzle-kit": "bin.cjs" } }, "sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw=="],
@@ -124,6 +134,8 @@
     "safe-compare": ["safe-compare@1.1.4", "", { "dependencies": { "buffer-alloc": "^1.2.0" } }, "sha512-b9wZ986HHCo/HbKrRpBJb2kqXMK9CEWIE1egeEvZsYn69ay3kdfl9nG3RyOcR+jInTDf7a86WQ1d4VJX7goSSQ=="],
 
     "sandwich-stream": ["sandwich-stream@2.0.2", "", {}, "sha512-jLYV0DORrzY3xaz/S9ydJL6Iz7essZeAfnAavsJ+zsJGZ1MOnsS52yRjU3uF3pJa/lla7+wisp//fxOwOH8SKQ=="],
+
+    "session": ["session@workspace:apps/session"],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
 

@@ -1,0 +1,6 @@
+{
+  // Shared compilerOptions live in the repo-root tsconfig.json — this app only adds what's
+  // package-local (its own include).
+  "extends": "../../tsconfig.json",
+  "include": ["src/**/*", "tests/**/*", "drizzle.app.config.ts", "drizzle.telegram.config.ts"]
+}
