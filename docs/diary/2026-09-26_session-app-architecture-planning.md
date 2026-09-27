@@ -91,9 +91,74 @@ confirm you're not a bot" не различают причину — матчи�
 
 ## Остаток работы
 
-- [ ] Следующая итерация: **детальное планирование** session-service (сущности → db-schema →
+- [x] Следующая итерация: **детальное планирование** session-service (сущности → db-schema →
       use-cases → границы с core) на основе зафиксированного в `docs/specs/session-app.specs.md`
-- [ ] Затем — реализация
+      — сделано 2026-09-27, см. ниже
+- [x] Затем — реализация — первый срез сделан 2026-09-27, см. ниже
 - [ ] Открытые инфраструктурные вопросы (прокси-биндинг, стратегия ротации, вендор для
-      браузер-эмуляции, классификация ошибок, распространение ключа шифрования, temp-файл для
-      куки) — заглушками или не трогать вовсе, пока не станут блокером
+      браузер-эмуляции, классификация ошибок, temp-файл для куки) — заглушками, остаются открытыми,
+      см. `docs/specs/session-app.specs.md`
+
+## 2026-09-27 — репо разъехалось на apps/*, детальный план и реализация v1
+
+Между этой сессией и предыдущей юзер сам закоммитил `72b0398 refactor(core): apps structure`
+(`git mv src → apps/core/src`) и `ad621dd feat(session): init app blank structure` — решил
+раскладку сильнее, чем предполагал план («модуль внутри одного `src/`»): теперь `apps/core` и
+`apps/session` — физически разные каталоги, каждый со своей `domain/application/infrastructure`.
+Это стало отправной точкой сессии.
+
+### Что обсудили и решили
+
+- **Топология процесса**: `apps/session` — не отдельный процесс. `apps/core/src/main.ts` остаётся
+  единственным композиционным корнем для всего процесса, открывает обе БД, стартует оба набора
+  воркеров — как сейчас в одном процессе живут download- и deliver-воркеры. Причина — Pi и так на
+  пределе (были OOM-инциденты), плюс это и был исходный план спеки («модуль сейчас, деплой
+  позже»). `apps/session` при этом остаётся чистой границей *кода* (свой `package.json`,
+  `domain/application/infrastructure`, своя `session.db`) — когда понадобится реальный отдельный
+  деплой, меняется способ старта, не сама логика.
+- **`queue` — не приватная собственность core.** Раз она используется двумя приложениями,
+  таблица (`queueTable`, Drizzle) и словарь значений (`BlockReason`, `QueueStatus`) выехали в
+  новый пакет `packages/shared-queue`. Обсуждали: достаточно ли вынести только TS-типы? Нет —
+  консистентность гарантирует только сам объект `sqliteTable`, импортируемый обеими сторонами;
+  типы без него не защищают от дрейфа схемы при будущей миграции core.
+- **Миграции разведены по apps-каталогам**: `apps/core/drizzle/{app,telegram}`,
+  `apps/session/drizzle/session` — каждое приложение самодостаточно, не общий корневой `drizzle/`.
+- **Репо стало bun workspace** (`workspaces: ["apps/*", "packages/*"]`): у каждого apps/*-пакета
+  свой `package.json`+`tsconfig.json` (extends корневой), скрипты через `bun --filter`.
+- Тем же приёмом, что и `shared-queue`, дальше выехали ещё два пакета: **`shared-secrets`**
+  (`redact`/`registerSecret` — один процесс, один `secrets`-Set, cookie session должен маскироваться
+  в логах core тоже) и **`shared-logger`** (единый формат строки лога для обоих приложений в одном
+  потоке на Pi).
+- **Порты — consumer-owned, не producer-owned**: сначала обсуждали, что core должен читать
+  `ServiceRepository`/etc из session напрямую — пересмотрели в пользу того, что каждая сторона
+  объявляет узкий порт для того, что ей нужно от другой (`SessionContextPort` в core's domain,
+  `QueueSignalPort` в session's domain), а не импортирует чужие domain-типы. `main.ts` связывает
+  оба порта — единственное место, которому разрешено знать про обе стороны.
+
+### Что реализовано (не только план — код, с тестами)
+
+- `packages/shared-queue` (`queueTable` + новая колонка `service_id`, `BlockReason.NeedsCookie`,
+  `QueueStatus`, `MAX_RETRIES`/`backoffSeconds`), `packages/shared-secrets`, `packages/shared-logger`
+- `apps/session` целиком: domain (service/account/proxy/cookie/account-job/browser-emulator/queue-signal),
+  db-schema + `session.db` + миграция, 5 репозиториев, `cookie-cipher.ts` (AES-256-GCM), заглушка
+  `stub-browser-emulator.ts`, 4 use-case'а, `account-job-poller.ts`, публичный `src/index.ts`
+- Интеграция в core: `SessionContextPort`, preflight в начале `download-job.ts`'s `runJob`
+  (до `getInfo`), `DownloaderPort.download` получил опциональный `cookieFilePath` →
+  `yt-dlp.ts` добавляет `--cookies`, `main.ts` компонует и стартует всё это рядом с существующими
+  воркерами
+- Тесты: 3 новых в `download-job.test.ts` (preflight) + 26 в `apps/session/tests/` (cipher,
+  репозитории, все 4 use-case'а) — итого 100/100 проходят
+- Проверено вживую (не только `bun test`): локальный запуск с фейковым `BOT_TOKEN` — `session.db`
+  создаётся с 5 таблицами, поллер стартует, всё падает ровно там, где ожидается (401 от Telegram);
+  то же самое в собранном Docker-образе
+- `docs/specs/session-app.specs.md` переписан под факт реализации (не черновой план), `CLAUDE.md`
+  — новая структура репо, БД, env vars, логирование
+- Попутно найдена и починена реальная поломка: `72b0398` был чистым `git mv` без правки
+  `package.json`/`drizzle.*.config.ts`/`Dockerfile`/`tests/` — `bun run dev`/`db:generate`/сборка
+  образа были сломаны с момента того коммита до этой сессии
+
+### Осталось непокрытым (по-прежнему открытые вопросы, см. спеку)
+
+Прокси-биндинг на скачивание, стратегия ротации аккаунтов, реальный вендор браузер-эмуляции,
+классификация "протухла кука" vs "не подходит", secure-wipe temp-файла куки. Всё — сознательно, до
+появления первого реального use case (провижининг реального SoundCloud-аккаунта).
