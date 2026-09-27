@@ -7,6 +7,7 @@ import type { DownloaderPort } from "../domain/download";
 import type { ErrorLogRepository } from "../domain/error-log";
 import type { NotifierPort } from "../domain/notifier";
 import type { ResourceArchivePort, ResourceCachePort } from "../domain/resource-cache";
+import type { SessionContextPort } from "../domain/session-context";
 import { errorMessage, failJob } from "./job-support";
 import type { WorkerLog } from "./worker-log";
 
@@ -24,6 +25,9 @@ export interface DownloadJobDeps {
   resources: ResourceRepository;
   notifier: NotifierPort;
   errorLog: ErrorLogRepository;
+  // session-service's one capability core depends on: is this url's service cookie-gated, and if
+  // so, is there a usable cookie right now. See the resolve-stage preflight in runJob() below.
+  sessionContext: SessionContextPort;
   // Files above this are rejected as BlockReason.TooLarge (the limit itself — Telegram Bot API —
   // is an infrastructure fact, so it is injected, not read from config here).
   maxFileSizeBytes: number;
@@ -100,6 +104,37 @@ export function createDownloadJob(deps: DownloadJobDeps): DownloadJobFn {
   // Returns true when the job's terminal status has already been written (permanent
   // failure) — in that case the caller must NOT also mark it 'done'.
   async function runJob(job: QueueItem, log: WorkerLog): Promise<boolean> {
+    // Resolve-stage preflight, before any download attempt (not deliver-job — see
+    // docs/specs/session-app.specs.md): does this url's service require a cookie, and is one
+    // usable right now? Checked against the raw url, so it runs even before resourceId/getInfo —
+    // known gap: getInfo() itself doesn't get the cookie file yet, only download() does (see
+    // domain/download.ts's DownloadOptions) — a cookie-gated resource whose metadata lookup also
+    // needs auth isn't handled by this first cut.
+    const service = await deps.sessionContext.resolveService(job.url);
+    let cookie: Awaited<ReturnType<SessionContextPort["getUsableCookie"]>> = null;
+
+    if (service?.requiresCookie) {
+      cookie = await deps.sessionContext.getUsableCookie(service.id);
+      if (!cookie) {
+        await deps.queue.setServiceId(job.id, service.id); // tag for session-service's requeue-by-service scan
+        await failJob(deps, job, {
+          ok: false,
+          error: `service ${service.name} requires a cookie, none usable right now`,
+          blockReason: BlockReason.NeedsCookie,
+          retryable: false,
+        }, log);
+        return true;
+      }
+    }
+
+    try {
+      return await runJobWithCookie(job, log, cookie?.filePath);
+    } finally {
+      await cookie?.cleanup();
+    }
+  }
+
+  async function runJobWithCookie(job: QueueItem, log: WorkerLog, cookieFilePath: string | undefined): Promise<boolean> {
     let resourceId = job.resourceId;
     let url = job.url;
 
@@ -120,7 +155,7 @@ export function createDownloadJob(deps: DownloadJobDeps): DownloadJobFn {
     if (await deliverExisting(job, resourceId, log)) return false;
 
     log.info(`job ${job.id} | downloading | ${url}`);
-    const result = await deps.downloader.download(url);
+    const result = await deps.downloader.download(url, { cookieFilePath });
 
     if (!result.ok) {
       // retryable -> hand it to the retry/backoff path in downloadJob's catch (same

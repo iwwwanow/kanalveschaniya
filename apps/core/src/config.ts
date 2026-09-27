@@ -8,6 +8,11 @@ export const config = {
   botToken: required("BOT_TOKEN"),
   channelId: required("CHANNEL_ID"),
   proxy: process.env.PROXY,
+  // Optional, not required: no code path reaches session-service's encrypt/decrypt until a
+  // cookie-gated service actually has an account provisioned (a manual DB step, see
+  // docs/specs/session-app.specs.md) — nothing to break for existing deployments that don't use
+  // this yet. Left unset, main.ts logs a warning instead of failing to boot.
+  sessionEncryptionKey: process.env.SESSION_ENCRYPTION_KEY,
   ytDlpPath: process.env.YT_DLP_PATH ?? "yt-dlp",
   tmpDir: process.env.TMP_DIR ?? "/tmp/ytdlp",
   contentDir: process.env.CONTENT_DIR ?? "./content",

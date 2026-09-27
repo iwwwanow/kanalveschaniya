@@ -85,9 +85,12 @@ export function createYtDlpDownloader(): DownloaderPort {
       return metaToResource(raw);
     },
 
-    async download(url): Promise<DownloadResult> {
+    async download(url, options): Promise<DownloadResult> {
+      // Applies to both the info re-fetch below and the actual download commands — a
+      // cookie-gated resource can need auth for either yt-dlp invocation, not just the second one.
+      const cookieArgs = options?.cookieFilePath ? ["--cookies", options.cookieFilePath] : [];
       try {
-        const infoStdout = await runYtDlpOrThrow(["-J", "--no-playlist", url]);
+        const infoStdout = await runYtDlpOrThrow([...cookieArgs, "-J", "--no-playlist", url]);
         const meta: YtDlpMeta = JSON.parse(infoStdout);
 
         // `--no-playlist` only suppresses expansion when a URL refers to BOTH a single
@@ -130,6 +133,7 @@ export function createYtDlpDownloader(): DownloaderPort {
 
         if (isVideo) {
           await runYtDlpOrThrow([
+            ...cookieArgs,
             "--no-playlist",
             "-f", "bestvideo+bestaudio",
             "--merge-output-format", "mp4",
@@ -138,6 +142,7 @@ export function createYtDlpDownloader(): DownloaderPort {
           ]);
         } else {
           await runYtDlpOrThrow([
+            ...cookieArgs,
             "--no-playlist",
             "-f", "bestaudio",
             "-x",

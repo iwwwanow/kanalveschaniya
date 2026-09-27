@@ -27,6 +27,20 @@ import { createDeliverJob } from "./application/deliver-job";
 import { createBot, startBot } from "./infrastructure/presentation/telegram-bot";
 import { startHealthServer } from "./infrastructure/presentation/health-server";
 import { startQueuePollers } from "./infrastructure/workers/queue-poller";
+import {
+  openSessionDb,
+  createServicesRepository,
+  createAccountsRepository,
+  createProxiesRepository,
+  createCookiesRepository,
+  createAccountJobsRepository,
+  createStubBrowserEmulator,
+  createSessionContext,
+  createEnsureAccountJobs,
+  createRunAccountJob,
+  createRequeueBlockedByService,
+  startAccountJobPoller,
+} from "session";
 
 // Fail on boot (not mid-reply) if telegram.localization.json was edited into an invalid state.
 assertTextsValid();
@@ -54,6 +68,7 @@ mkdirSync(dataDir, { recursive: true });
 
 const appDb = openAppDb(dataDir);
 const telegramDb = openTelegramDb(dataDir);
+const sessionDb = openSessionDb(dataDir);
 
 const queueRepo = createQueueRepository(appDb);
 const resourceRepo = createResourceRepository(appDb);
@@ -92,6 +107,49 @@ if (config.saveToContentDir) {
   archives.push(createFsCacheAdapter({ contentDir: config.contentDir, resource: resourceRepo }));
 }
 
+// session-service: a module in this same process for now (see docs/specs/session-app.specs.md) —
+// its own db (session.db), its own repositories/use-cases, wired into core only through
+// SessionContextPort (download-job.ts's resolve-stage preflight) and QueueSignalPort (queueRepo
+// itself, passed in below — session-service never imports core's QueueRepository type, this
+// object just happens to satisfy the narrower shape it declares).
+if (!config.sessionEncryptionKey) {
+  logger.warn("SESSION_ENCRYPTION_KEY not set — fine until a cookie-gated service account is provisioned in session.db");
+}
+const servicesRepo = createServicesRepository(sessionDb);
+const accountsRepo = createAccountsRepository(sessionDb);
+const proxiesRepo = createProxiesRepository(sessionDb);
+const cookiesRepo = createCookiesRepository(sessionDb);
+const accountJobsRepo = createAccountJobsRepository(sessionDb);
+const browserEmulator = createStubBrowserEmulator(); // no vendor picked yet — see its own comment
+
+const sessionContext = createSessionContext({
+  services: servicesRepo,
+  accounts: accountsRepo,
+  cookies: cookiesRepo,
+  encryptionKey: config.sessionEncryptionKey ?? "",
+  tmpDir: config.tmpDir,
+});
+
+// Staggered the same way GEO_REQUEUE_STAGGER_SECONDS is below — a service's whole needs_cookie
+// backlog becoming claimable in one instant is the same cold-start burst risk either way.
+const NEEDS_COOKIE_REQUEUE_STAGGER_SECONDS = 30;
+const requeueBlockedByService = createRequeueBlockedByService(queueRepo);
+const runAccountJob = createRunAccountJob({
+  accountJobs: accountJobsRepo,
+  accounts: accountsRepo,
+  proxies: proxiesRepo,
+  cookies: cookiesRepo,
+  browserEmulator,
+  requeueBlockedByService,
+  encryptionKey: config.sessionEncryptionKey ?? "",
+  requeueStaggerSeconds: NEEDS_COOKIE_REQUEUE_STAGGER_SECONDS,
+});
+const ensureAccountJobs = createEnsureAccountJobs({
+  queueSignal: queueRepo,
+  accounts: accountsRepo,
+  accountJobs: accountJobsRepo,
+});
+
 const downloadJob = createDownloadJob({
   queue: queueRepo,
   downloader,
@@ -100,6 +158,7 @@ const downloadJob = createDownloadJob({
   archives,
   notifier,
   errorLog,
+  sessionContext,
   maxFileSizeBytes: config.maxFileSizeBytes,
   registerPlaylistEntryOrigin: (childJobId, userId) => replyRefs.save(childJobId, userId, null),
 });
@@ -128,6 +187,12 @@ if (config.proxy) {
   logger.info("requeued geo-blocked jobs for retry (proxy is set), staggered to avoid a cold-start burst");
 }
 startQueuePollers({ queue: queueRepo, downloadJob, deliverJob });
+startAccountJobPoller({
+  accountJobs: accountJobsRepo,
+  ensureAccountJobs,
+  runAccountJob,
+  intervalMs: config.workerIntervalMs,
+});
 
 startHealthServer(config.healthPort);
 

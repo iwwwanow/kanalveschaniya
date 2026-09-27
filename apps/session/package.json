@@ -1,9 +1,18 @@
 {
   "name": "session",
   "version": "0.0.0",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "exports": "./src/index.ts",
   "scripts": {
-    "db:generate": "echo 'apps/session: no schema yet — nothing to generate'"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate --config drizzle.session.config.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "shared-logger": "workspace:*",
+    "shared-queue": "workspace:*",
+    "shared-secrets": "workspace:*"
   }
 }

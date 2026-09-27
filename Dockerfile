@@ -6,6 +6,8 @@ COPY package.json bun.lock* bun.lockb* ./
 COPY apps/core/package.json ./apps/core/
 COPY apps/session/package.json ./apps/session/
 COPY packages/shared-queue/package.json ./packages/shared-queue/
+COPY packages/shared-secrets/package.json ./packages/shared-secrets/
+COPY packages/shared-logger/package.json ./packages/shared-logger/
 RUN bun install --frozen-lockfile --production
 
 FROM oven/bun:1.3 AS runtime
@@ -23,12 +25,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/core/src/ ./apps/core/src/
-# SQL migrations (drizzle-kit output), applied on startup by openAppDb/openTelegramDb
+# SQL migrations (drizzle-kit output), applied on startup by openAppDb/openTelegramDb and
+# openSessionDb respectively.
 COPY apps/core/drizzle/ ./apps/core/drizzle/
-# node_modules/shared-queue is a symlink to here (bun workspace) — not bundled, so the actual
-# source has to be present at runtime too, not just node_modules.
+COPY apps/session/package.json ./apps/session/
+COPY apps/session/src/ ./apps/session/src/
+COPY apps/session/drizzle/ ./apps/session/drizzle/
+# node_modules/<pkg> is a symlink to these (bun workspace) — not bundled, so the actual source has
+# to be present at runtime too, not just node_modules.
 COPY packages/shared-queue/package.json ./packages/shared-queue/
 COPY packages/shared-queue/src/ ./packages/shared-queue/src/
+COPY packages/shared-secrets/package.json ./packages/shared-secrets/
+COPY packages/shared-secrets/src/ ./packages/shared-secrets/src/
+COPY packages/shared-logger/package.json ./packages/shared-logger/
+COPY packages/shared-logger/src/ ./packages/shared-logger/src/
 COPY tsconfig.json ./
 
 ENV NODE_ENV=production

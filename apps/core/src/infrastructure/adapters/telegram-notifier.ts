@@ -23,6 +23,7 @@ const BLOCK_REASON_TEXT: Record<BlockReason, TextKey> = {
   [BlockReason.TooLarge]: "failure.too_large",
   [BlockReason.TooLong]: "failure.too_long",
   [BlockReason.CrashedRepeatedly]: "failure.crashed_repeatedly",
+  [BlockReason.NeedsCookie]: "failure.needs_cookie",
 };
 
 function formatFailureMessage(result: FailureResult, maxFileSizeBytes: number): string {

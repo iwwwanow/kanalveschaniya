@@ -26,6 +26,7 @@ export const TEXT_PARAMS: Record<TextKey, readonly string[]> = {
   "failure.too_large": ["title", "limit_mb"],
   "failure.too_long": ["title", "duration_min", "limit_mb"],
   "failure.crashed_repeatedly": [],
+  "failure.needs_cookie": [],
   "failure.not_found": [],
   "failure.generic": [],
 };

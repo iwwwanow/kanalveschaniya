@@ -9,10 +9,11 @@ import { createErrorLogRepository } from "../src/infrastructure/repository/error
 import { createDownloadJob } from "../src/application/download-job";
 import { createDeliverJob } from "../src/application/deliver-job";
 import type { WorkerLog } from "../src/application/worker-log";
-import type { DownloadResult, DownloaderPort } from "../src/domain/download";
+import type { DownloadOptions, DownloadResult, DownloaderPort } from "../src/domain/download";
 import type { NotifierPort } from "../src/domain/notifier";
 import type { ResourceArchivePort, ResourceCachePort } from "../src/domain/resource-cache";
 import type { Resource } from "../src/domain/resource";
+import type { SessionContextPort } from "../src/domain/session-context";
 
 export const MB = 1024 * 1024;
 export const noopLog: WorkerLog = { info() {}, warn() {}, error() {} };
@@ -47,7 +48,16 @@ export interface RigOptions {
   archiveSave?: () => Promise<void>;
   notify?: () => Promise<void>;
   maxFileSizeBytes?: number;
+  sessionContext?: SessionContextPort;
 }
+
+// No cookie-gated service ever matches — the whole session-service preflight is a no-op, existing
+// tests exercise the pre-session-service behavior exactly as before. Override via
+// RigOptions.sessionContext for tests that need to exercise the needs_cookie path.
+const noopSessionContext: SessionContextPort = {
+  resolveService: async () => null,
+  getUsableCookie: async () => null,
+};
 
 export interface QueueRow {
   id: number;
@@ -57,6 +67,7 @@ export interface QueueRow {
   error: string | null;
   block_reason: string | null;
   resource_id: string | null;
+  service_id: number | null;
   file_path: string | null;
   deliver_retries: number;
   deliver_retry_after: number | null;
@@ -71,6 +82,7 @@ export function rig(opts: RigOptions = {}) {
   const files: string[] = [];
   let infoCalls = 0;
   const playlistSummaries: Array<{ queued: number; cached: number }> = [];
+  const downloadOptions: (DownloadOptions | undefined)[] = [];
   let cached = false;
 
   const cache: ResourceCachePort = {
@@ -103,7 +115,8 @@ export function rig(opts: RigOptions = {}) {
     },
     download:
       opts.download ??
-      (async () => {
+      (async (_url, options) => {
+        downloadOptions.push(options);
         calls.push("download");
         const filePath = makeFile(dir, opts.size ?? 10);
         files.push(filePath);
@@ -131,6 +144,7 @@ export function rig(opts: RigOptions = {}) {
     archives: [archive],
     notifier,
     errorLog,
+    sessionContext: opts.sessionContext ?? noopSessionContext,
     maxFileSizeBytes: opts.maxFileSizeBytes ?? 50 * MB,
     registerPlaylistEntryOrigin: async () => {},
   });
@@ -174,6 +188,7 @@ export function rig(opts: RigOptions = {}) {
     notes,
     files,
     playlistSummaries,
+    downloadOptions,
     row,
     downloadNext,
     deliverNext,

@@ -10,6 +10,12 @@ export enum BlockReason {
   TooLarge = "too_large", // the downloaded file exceeds the upload limit
   TooLong = "too_long", // predicted before downloading: the duration alone won't fit the limit
   CrashedRepeatedly = "crashed_repeatedly",
+  // session-service: the resource's service requires a cookie and none is usable right now. Not
+  // bounded by MAX_RETRIES — a resource job just sits here until session-service's account_job
+  // flow gets a working account and requeues it (see docs/specs/session-app.specs.md). Note this
+  // is also what a banned account looks like from the resource's side — AccountStatus.Banned is
+  // an account-level terminal state, not a distinct BlockReason of its own.
+  NeedsCookie = "needs_cookie",
 }
 
 // For values read back from the DB (plain string column) — unknown value -> null, so a stray

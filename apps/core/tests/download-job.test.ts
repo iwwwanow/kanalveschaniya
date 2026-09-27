@@ -150,3 +150,57 @@ describe("download stage: archive hits (no cache, or cache miss)", () => {
     expect(r.db.query<{ c: number }, []>("SELECT COUNT(*) c FROM queue WHERE resource_id = 'r2'").get()!.c).toBe(1);
   });
 });
+
+describe("session-service: needs_cookie preflight", () => {
+  test("cookie-requiring service with no usable cookie -> failed at once, no download attempt, service_id tagged", async () => {
+    const r = rig({
+      sessionContext: {
+        resolveService: async () => ({ id: 42, name: "soundcloud", requiresCookie: true }),
+        getUsableCookie: async () => null,
+      },
+    });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("failed");
+    expect(row.block_reason).toBe("needs_cookie");
+    expect(row.service_id).toBe(42);
+    expect(r.calls).toEqual([]); // never attempted a download
+    expect(r.infoCalls()).toBe(0); // never even resolved the resource
+    expect(r.notes[0]).toMatchObject({ ok: false, blockReason: BlockReason.NeedsCookie });
+  });
+
+  test("cookie-requiring service with a usable cookie -> the cookie file path reaches download(), then is cleaned up", async () => {
+    let cleanedUp = false;
+    const r = rig({
+      sessionContext: {
+        resolveService: async () => ({ id: 42, name: "soundcloud", requiresCookie: true }),
+        getUsableCookie: async () => ({
+          filePath: "/tmp/fake-cookie.txt",
+          cleanup: async () => {
+            cleanedUp = true;
+          },
+        }),
+      },
+    });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("downloaded");
+    expect(r.downloadOptions).toEqual([{ cookieFilePath: "/tmp/fake-cookie.txt" }]);
+    expect(cleanedUp).toBe(true);
+  });
+
+  test("service not requiring a cookie -> preflight is a no-op even when the service is known", async () => {
+    const r = rig({
+      sessionContext: {
+        resolveService: async () => ({ id: 1, name: "youtube", requiresCookie: false }),
+        getUsableCookie: async () => {
+          throw new Error("must not be called — the service doesn't require a cookie");
+        },
+      },
+    });
+    const row = await r.runOnce();
+
+    expect(row.status).toBe("downloaded");
+    expect(r.downloadOptions).toEqual([{ cookieFilePath: undefined }]);
+  });
+});
