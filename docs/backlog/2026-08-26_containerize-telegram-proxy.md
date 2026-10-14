@@ -1,5 +1,7 @@
 # Контейнеризовать прокси-цепочку для обхода блокировки Telegram API
 
+> 2026-10-14: вместо ssh + privoxy предлагается mihomo вторым контейнером — `2026-10-14_mihomo-sidecar-instead-of-ssh-privoxy.md`.
+
 Сейчас (сессия 2026-08-23) обход блокировки `api.telegram.org` с домашней сети сделан **вручную на хосте** `dietpi` — SSH-туннель (`timeweb-socks5.service`) + `privoxy`-мост (SOCKS5→HTTP), оба systemd-юнитами прямо на Pi, не в GitOps. Подробности — `infrastructure/docs/k3s-flux-bootstrap.md`, раздел "Обход блокировки Telegram API" в Фазе 5.
 
 **Почему цепочка именно такая** (не просто SOCKS5): связка `Telegraf`→`node-fetch`→кастомный `http.Agent` (`socks-proxy-agent`) не работает под Bun — запрос через SOCKS5-агент зависает навсегда без ошибки. `HttpsProxyAgent` (HTTP CONNECT) сработал. SSH сам HTTP не умеет (только SOCKS через `-D`), отсюда мост `privoxy`.
